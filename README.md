@@ -47,6 +47,30 @@ This project is intended for **local-network use only** and should **not** be ex
 6. **Open on Tablet:**
    Find your Mac's local IP address (e.g., `192.16.1.X`) and open `http://<MAC_LOCAL_IP>:8765` on the Fire tablet.
 
+## Development vs. hosting
+
+**Develop** (editing/testing on any machine, e.g. a remote Linux box):
+
+```bash
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+./run.sh   # localhost only, auto-reload
+```
+
+To reach it from another machine, tunnel instead of exposing the port:
+`ssh -L 8765:127.0.0.1:8765 <dev-box>`. Off macOS the UI/stats/photos work; the
+Shortcuts/`open` actions just return a failure message (run them on the Mac).
+
+If `venv` reports `ensurepip` is missing (minimal Debian/Ubuntu):
+
+```bash
+python3 -m venv .venv --without-pip
+curl -sSL https://bootstrap.pypa.io/get-pip.py | ./.venv/bin/python -
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
+**Host** (the live workflow, from your Mac): `git pull`, then `./scripts/start.sh`.
+
 ## Adding Buttons Safely
 
 To add a new safe action:
@@ -126,6 +150,15 @@ After **5 failed login attempts**, the IP is locked out for **30 seconds**. This
 The Settings tab and login screen both have a **"Request Fullscreen"** button that calls the browser Fullscreen API. Some browsers block this unless triggered by a user gesture. If it is blocked, a toast message will explain this and recommend using Fully Kiosk's own fullscreen setting instead.
 
 ---
+
+## One-Click Launch on macOS
+
+After the one-time setup above (venv + requirements installed on the Mac), you can start the server without opening a terminal:
+
+1. **`launch-mac.command`** (included) — double-click it in Finder to open Terminal and run the server; close the window or press `Ctrl+C` to stop. First run, macOS may block it: right-click → **Open** once. Drag it onto the Dock for one-tap launch, and set a custom icon via **Finder → Get Info → paste an image onto the icon**.
+2. **App with a real icon** — Open **Automator → New → Application → "Run Shell Script"**, paste `cd "$HOME/path/to/FireFrame" && ./scripts/start.sh`, and save as `Desk Companion.app` in `/Applications` or the Dock.
+
+To start automatically at login instead of on a click, see *Running at Login* below.
 
 ## Running at Login
 

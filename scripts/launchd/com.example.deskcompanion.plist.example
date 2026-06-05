@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <!-- REPLACE THIS WITH YOUR ACTUAL ABSOLUTE PATH TO start.sh -->
-        <string>/Users/ethanxu/Desktop/Amazon "Streamdeck"/desk-companion/scripts/start.sh</string>
+        <string>/Users/YOUR_USERNAME/path/to/FireFrame/scripts/start.sh</string>
     </array>
 
     <key>RunAtLoad</key>

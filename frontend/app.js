@@ -477,9 +477,26 @@ async function fetchCalendar() {
             const s = fmtTime(ev.start), e = fmtTime(ev.end);
             const item = document.createElement('div');
             item.className = 'agenda-item';
-            item.innerHTML = `<div class="ev-title">${ev.title}</div>
-                              <div class="ev-time">${s} – ${e}</div>
-                              ${ev.location ? `<div class="ev-loc">📍 ${ev.location}</div>` : ''}`;
+
+            // textContent (not innerHTML) so event titles/locations can't inject markup.
+            const title = document.createElement('div');
+            title.className = 'ev-title';
+            title.textContent = ev.title || '';
+
+            const timeEl = document.createElement('div');
+            timeEl.className = 'ev-time';
+            timeEl.textContent = `${s} – ${e}`;
+
+            item.appendChild(title);
+            item.appendChild(timeEl);
+
+            if (ev.location) {
+                const loc = document.createElement('div');
+                loc.className = 'ev-loc';
+                loc.textContent = `📍 ${ev.location}`;
+                item.appendChild(loc);
+            }
+
             list.appendChild(item);
         });
 

@@ -4,9 +4,10 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 import os
 import time
+import secrets
 from collections import defaultdict
 
-from backend.auth import create_session_token, get_current_user
+from backend.auth import create_session_token, get_current_user, SESSION_MAX_AGE_SECONDS
 from backend.config_loader import DASHBOARD_PASSWORD
 from backend.actions import handle_action
 from backend.bluetooth import handle_bluetooth_action, get_bluetooth_status
@@ -28,10 +29,8 @@ MAX_ATTEMPTS = 5
 LOCKOUT_SECONDS = 30
 
 def get_client_ip(request: Request) -> str:
-    # Prefer X-Forwarded-For header in case of proxy; fallback to direct IP
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    # Use the real socket peer, not X-Forwarded-For: there's no proxy here, so a
+    # spoofed XFF header would let a client bypass the per-IP login lockout.
     return request.client.host if request.client else "unknown"
 
 def check_rate_limit(ip: str):
@@ -99,14 +98,16 @@ async def login(req: LoginRequest, request: Request, response: Response):
     ip = get_client_ip(request)
     check_rate_limit(ip)  # raises 429 if locked out
 
-    if req.password == DASHBOARD_PASSWORD:
+    # Constant-time compare to avoid leaking the password via response timing.
+    if secrets.compare_digest(req.password.encode("utf-8"), DASHBOARD_PASSWORD.encode("utf-8")):
         clear_attempts(ip)
         token = create_session_token(True)
         response.set_cookie(
             key="session",
             value=token,
             httponly=True,
-            samesite="lax"
+            samesite="lax",
+            max_age=SESSION_MAX_AGE_SECONDS,
         )
         return {"success": True}
 

@@ -1,14 +1,14 @@
 .env
-.venv
+backend/config.py
+
+.venv/
 venv/
 __pycache__/
 *.pyc
 .DS_Store
 logs/
-desk-companion/photos/*.jpg
-desk-companion/photos/*.jpeg
-desk-companion/photos/*.png
-desk-companion/photos/*.gif
-desk-companion/photos/*.webp
-!desk-companion/photos/README.md
-backend/config.py
+.server.pid
+
+# Ignore everything in photos/ except the README (no personal images in git)
+photos/*
+!photos/README.md

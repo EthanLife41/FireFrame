@@ -17,6 +17,7 @@ SESSION_SECRET = os.getenv("SESSION_SECRET", "change-this-random-string")
 PREPARE_LAPTOP_URLS = [
     "https://calendar.google.com",
     "https://mail.google.com",
+    "https://outlook.com",
     "https://github.com",
     "https://chatgpt.com"
 ]

@@ -3,9 +3,12 @@ import time
 
 BOOT_TIME = psutil.boot_time()
 
+# Prime the CPU counter so later interval=None reads are non-blocking
+# (usage since the previous poll) instead of stalling the event loop.
+psutil.cpu_percent(interval=None)
+
 def get_mac_stats() -> dict:
-    # CPU
-    cpu_percent = psutil.cpu_percent(interval=0.1)
+    cpu_percent = psutil.cpu_percent(interval=None)  # non-blocking (primed above)
     
     # RAM
     mem = psutil.virtual_memory()
