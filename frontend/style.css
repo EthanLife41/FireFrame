@@ -1,0 +1,653 @@
+/* ===================================================
+   DESK COMPANION — Tablet-Optimised Dark CSS
+   Target: Fire HD 8, landscape, Fully Kiosk Browser
+   =================================================== */
+
+/* ---------- Reset & Root ---------- */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    /* Eliminate 300ms tap delay on Android/Chromium */
+    touch-action: manipulation;
+}
+
+:root {
+    --bg:          #0f172a;
+    --surface:     #1e293b;
+    --surface2:    #273449;
+    --border:      #334155;
+    --primary:     #3b82f6;
+    --primary-dk:  #2563eb;
+    --danger:      #ef4444;
+    --danger-dk:   #dc2626;
+    --text:        #f1f5f9;
+    --muted:       #94a3b8;
+    --nav-h:       68px;
+    --radius:      14px;
+    --radius-sm:   10px;
+}
+
+/* Force dark background immediately — prevents white flash */
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 18px;
+    line-height: 1.4;
+}
+
+/* ---------- Screens ---------- */
+.screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    background: var(--bg);
+}
+.screen.active { display: flex; }
+.hidden        { display: none !important; }
+
+/* ===================================================
+   LOGIN SCREEN
+   =================================================== */
+#login-screen {
+    align-items: center;
+    justify-content: center;
+}
+
+.login-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 0.75rem;
+}
+
+.login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.75rem 2rem;
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+}
+
+.login-header {
+    text-align: center;
+}
+.login-icon   { font-size: 2.5rem; }
+.login-header h1 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700; margin: 0.25rem 0; }
+.login-hint   { font-size: 0.9rem; color: var(--muted); margin-top: 0.25rem; }
+
+/* PIN Dots */
+.pin-dots {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+    margin: 0.25rem 0;
+}
+.dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--muted);
+    background: transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.dot.filled {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+/* PIN Pad Grid */
+.pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 360px;
+}
+.pin-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: clamp(1.3rem, 2.5vw, 1.7rem);
+    font-weight: 600;
+    height: 68px;
+    cursor: pointer;
+    transition: background 0.1s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.pin-btn:active {
+    background: var(--primary);
+    transform: scale(0.94);
+}
+.pin-clear, .pin-del {
+    background: var(--surface);
+    color: var(--muted);
+}
+
+.pin-submit {
+    width: 100%;
+    max-width: 360px;
+    margin-top: 0.35rem;
+    padding: 1rem;
+    font-size: 1.1rem;
+}
+
+/* Keyboard fallback */
+.kb-input-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 280px;
+}
+.kb-input-wrap input {
+    width: 100%;
+    padding: 0.75rem 2.5rem 0.75rem 0.75rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 1rem;
+}
+.show-pw-btn {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--muted);
+}
+
+#keyboard-mode {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+}
+#keyboard-mode .btn {
+    width: 100%;
+    max-width: 280px;
+}
+
+/* Helper buttons */
+.link-btn {
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-top: 0.1rem;
+}
+.error-text {
+    color: var(--danger);
+    font-size: 0.78rem;
+    text-align: center;
+    padding: 0.35rem 0.75rem;
+    background: rgba(239,68,68,0.1);
+    border-radius: var(--radius-sm);
+    width: 100%;
+    max-width: 280px;
+}
+.fullscreen-btn {
+    margin-top: 0.25rem;
+    opacity: 0.6;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    align-self: center;
+}
+
+/* ===================================================
+   MAIN APP LAYOUT
+   =================================================== */
+#main-screen {
+    flex-direction: column;
+}
+
+.content-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.75rem;
+    /* Nav bar is in flex layout flow, NOT position:fixed — no extra bottom padding needed */
+}
+
+/* Tab switching */
+.tab-content        { display: none; height: 100%; }
+.tab-content.active { display: block; animation: fadeUp 0.2s ease; }
+
+/* Buttons tab: fill the full content area height, no scroll */
+#tab-buttons {
+    padding: 0;
+    overflow: hidden;
+}
+#tab-buttons.active {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Flat 4×4 deck grid — fills available height via flex */
+.deck-grid-full {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 0.65rem;
+    padding: 0.65rem;
+}
+.deck-grid-full .action-btn {
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+}
+/* Invisible filler buttons to complete the 4×4 grid */
+.deck-empty {
+    visibility: hidden;
+    pointer-events: none;
+}
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Cards ---------- */
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+}
+.card-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+}
+
+/* ---------- Shared Buttons ---------- */
+.btn {
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--surface2);
+    color: var(--text);
+    transition: background 0.1s, transform 0.1s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+.btn:active       { transform: scale(0.95); }
+.primary-btn      { background: var(--primary); }
+.primary-btn:active { background: var(--primary-dk); }
+.danger-btn       { background: var(--danger); }
+.danger-btn:active { background: var(--danger-dk); }
+.small-btn        { padding: 0.5rem 0.9rem; font-size: 0.88rem; }
+
+/* ===================================================
+   HOME TAB
+   =================================================== */
+.home-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.6rem;
+}
+.home-left  { display: flex; flex-direction: column; gap: 0.6rem; }
+.home-right { display: flex; flex-direction: column; gap: 0.6rem; }
+
+/* Clock */
+.clock-card { text-align: center; background: linear-gradient(135deg, #1e293b, #0f172a); }
+.clock      { font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 800; letter-spacing: -1px; line-height: 1; }
+.date-text  { font-size: clamp(0.9rem, 1.5vw, 1.1rem); color: var(--muted); margin-top: 0.25rem; }
+
+/* Event */
+.event-card .event-title-main { font-weight: 600; font-size: clamp(1rem, 1.8vw, 1.2rem); }
+.event-countdown { font-size: 0.88rem; color: var(--primary); margin-top: 0.25rem; }
+
+/* Stats mini */
+.stats-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.92rem;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.stats-row:last-child { border-bottom: none; }
+.stats-row span:first-child { color: var(--muted); }
+.stats-row span:last-child  { font-weight: 600; }
+
+/* Favourites row */
+.home-favs {
+    grid-column: span 2;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem;
+}
+
+/* ===================================================
+   ACTION BUTTONS (Stream Deck style)
+   =================================================== */
+.action-btn {
+    background: linear-gradient(145deg, #1e293b, #111827);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 0.35rem;
+    font-size: 1.7rem;    /* emoji */
+    transition: background 0.1s, transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    min-height: 110px;
+}
+.action-btn span {
+    font-size: clamp(0.78rem, 1.5vw, 0.92rem);
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+.action-btn:active {
+    background: var(--primary-dk);
+    transform: scale(0.94) translateY(1px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+.action-btn.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+/* ===================================================
+   BUTTONS TAB
+   =================================================== */
+.btn-tab-scroll { padding-bottom: 0.75rem; }
+
+.section-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin: 0.6rem 0 0.35rem 0;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Dense Stream Deck grid */
+.deck-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.65rem;
+    margin-bottom: 0.25rem;
+}
+
+/* ===================================================
+   CALENDAR TAB
+   =================================================== */
+.cal-header {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+}
+.agenda-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.agenda-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.75rem;
+}
+.agenda-item .ev-title { font-weight: 600; font-size: 0.88rem; }
+.agenda-item .ev-time  { font-size: 0.72rem; color: var(--primary); margin-top: 0.15rem; }
+.agenda-item .ev-loc   { font-size: 0.68rem; color: var(--muted); margin-top: 0.1rem; }
+
+/* ===================================================
+   PHOTOS TAB
+   =================================================== */
+.photo-tab {
+    position: relative;
+    background: #000;
+    overflow: hidden;
+}
+.tab-content.photo-tab.active {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--nav-h));
+}
+.photo-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+.photo-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    animation: photoFade 0.8s ease;
+}
+@keyframes photoFade { from { opacity: 0; } to { opacity: 1; } }
+
+.no-photos {
+    color: var(--muted);
+    text-align: center;
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+.no-photos span { font-size: 2.5rem; }
+
+.photo-hud {
+    position: absolute;
+    bottom: 0.75rem;
+    right: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.photo-clock {
+    font-size: clamp(1.2rem, 4vw, 1.8rem);
+    font-weight: 700;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+    background: rgba(0,0,0,0.45);
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-sm);
+}
+
+/* ===================================================
+   SETTINGS TAB
+   =================================================== */
+.settings-scroll { display: flex; flex-direction: column; gap: 0.6rem; padding-bottom: 1rem; }
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.78rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-row span:first-child { color: var(--muted); }
+.url-text { font-size: 0.65rem; color: var(--primary); word-break: break-all; }
+.muted-text { font-size: 0.7rem; color: var(--muted); }
+.security-card p { font-size: 0.72rem; color: var(--muted); }
+.settings-actions { text-align: center; }
+
+/* ===================================================
+   BOTTOM NAV
+   =================================================== */
+.bottom-nav {
+    flex-shrink: 0;
+    height: var(--nav-h);
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: stretch;
+}
+.nav-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+.nav-btn .nav-icon { font-size: 1.4rem; }
+.nav-btn.active    { color: var(--primary); }
+
+/* ===================================================
+   MODALS
+   =================================================== */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+}
+.modal-box {
+    width: 90%;
+    max-width: 340px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.modal-box h2 { font-size: 1.1rem; }
+.modal-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+}
+.time-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 1.4rem;
+    padding: 0.6rem;
+    width: 100%;
+    text-align: center;
+}
+.timer-box { max-width: 300px; }
+.timer-display {
+    font-size: clamp(2.5rem, 8vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -2px;
+}
+.timer-presets {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* ===================================================
+   TOAST
+   =================================================== */
+.toast {
+    position: fixed;
+    top: 0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary);
+    color: #fff;
+    padding: 0.6rem 1.25rem;
+    border-radius: 2rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    animation: slideDown 0.25s ease;
+}
+@keyframes slideDown {
+    from { transform: translate(-50%, -120%); }
+    to   { transform: translate(-50%, 0); }
+}
+
+/* ===================================================
+   RESPONSIVE — Fire HD 8 landscape ~960×600
+   =================================================== */
+/* No max-height shrink rule — Fire HD 8 renders at ~533px CSS height and was
+   triggering the old (max-height: 640px) rule, making everything smaller. */
+
+@media (max-width: 700px) {
+    .home-favs { grid-template-columns: repeat(2, 1fr); }
+    .deck-grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+}
+
+/* Cache-busting UI additions */
+.version-indicator {
+    position: fixed;
+    bottom: 4px;
+    right: 6px;
+    font-size: 0.62rem;
+    color: var(--muted);
+    opacity: 0.45;
+    z-index: 9999;
+    pointer-events: none;
+    font-family: monospace;
+}
+
+.login-footer-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    width: 100%;
+}
+
+.btn-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}

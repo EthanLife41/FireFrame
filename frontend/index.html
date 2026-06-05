@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Desk Companion</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="stylesheet" href="/static/style.css?v={{CSS_VERSION}}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- ===================== LOGIN SCREEN ===================== -->
+<div id="login-screen" class="screen active">
+    <div class="login-wrap">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="login-icon">🖥️</span>
+                <h1>Desk Companion</h1>
+                <p class="login-hint">Using Fully Kiosk? PIN mode avoids needing the tablet keyboard.</p>
+            </div>
+
+            <!-- PIN Display -->
+            <div id="pin-mode">
+                <div id="pin-dots" class="pin-dots">
+                    <span class="dot" id="d0"></span>
+                    <span class="dot" id="d1"></span>
+                    <span class="dot" id="d2"></span>
+                    <span class="dot" id="d3"></span>
+                </div>
+
+                <!-- Numeric Keypad -->
+                <div class="pin-pad">
+                    <button class="pin-btn" data-digit="1">1</button>
+                    <button class="pin-btn" data-digit="2">2</button>
+                    <button class="pin-btn" data-digit="3">3</button>
+                    <button class="pin-btn" data-digit="4">4</button>
+                    <button class="pin-btn" data-digit="5">5</button>
+                    <button class="pin-btn" data-digit="6">6</button>
+                    <button class="pin-btn" data-digit="7">7</button>
+                    <button class="pin-btn" data-digit="8">8</button>
+                    <button class="pin-btn" data-digit="9">9</button>
+                    <button class="pin-btn pin-clear" id="pin-clear-btn">C</button>
+                    <button class="pin-btn" data-digit="0">0</button>
+                    <button class="pin-btn pin-del" id="pin-del-btn">⌫</button>
+                </div>
+
+                <button class="btn primary-btn pin-submit" id="pin-submit-btn">Login</button>
+                <p id="login-error" class="error-text hidden"></p>
+                <button class="link-btn" id="show-password-btn">Use keyboard password instead</button>
+            </div>
+
+            <!-- Keyboard Fallback -->
+            <div id="keyboard-mode" class="hidden">
+                <div class="kb-input-wrap">
+                    <input type="password" id="password-input" placeholder="Enter password" autocomplete="current-password">
+                    <button class="show-pw-btn" id="toggle-pw-btn">👁</button>
+                </div>
+                <button class="btn primary-btn" id="login-btn">Login</button>
+                <p id="kb-login-error" class="error-text hidden"></p>
+                <button class="link-btn" id="show-pin-btn">Use PIN keypad instead</button>
+            </div>
+
+            <div class="login-footer-actions">
+                <button class="btn small-btn fullscreen-btn" id="login-fullscreen-btn">⛶ Fullscreen</button>
+                <button class="btn small-btn reload-btn" id="login-reload-btn">🔄 Reload App</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== MAIN APP ===================== -->
+<div id="main-screen" class="screen hidden">
+
+    <main class="content-area">
+
+        <!-- HOME TAB -->
+        <div id="tab-home" class="tab-content active">
+            <div class="home-layout">
+
+                <!-- Left column: Clock + Event -->
+                <div class="home-left">
+                    <div class="card clock-card">
+                        <div id="clock" class="clock">00:00</div>
+                        <div id="date" class="date-text">Loading...</div>
+                    </div>
+                    <div class="card event-card">
+                        <div class="card-label">Next Event</div>
+                        <div id="next-event" class="event-title-main">—</div>
+                        <div id="event-countdown" class="event-countdown"></div>
+                    </div>
+                </div>
+
+                <!-- Right column: Stats + Status + Favs -->
+                <div class="home-right">
+                    <div class="card stats-mini-card">
+                        <div class="card-label">Mac Stats</div>
+                        <div class="stats-row"><span>CPU</span><span id="home-cpu">—</span></div>
+                        <div class="stats-row"><span>RAM</span><span id="home-ram">—</span></div>
+                        <div class="stats-row"><span>Battery</span><span id="home-battery">—</span></div>
+                        <div class="stats-row"><span>Uptime</span><span id="home-uptime">—</span></div>
+                    </div>
+                    <div class="card bt-mini-card">
+                        <div class="card-label">Bluetooth</div>
+                        <div class="stats-row"><span>Status</span><span id="home-bt-status">—</span></div>
+                    </div>
+                </div>
+
+                <!-- Favourites row -->
+                <div class="home-favs">
+                    <button class="action-btn" data-action="toggle_dnd">🌙<span>DND</span></button>
+                    <button class="action-btn" data-action="toggle_locked_in">🎯<span>Locked In</span></button>
+                    <button class="action-btn" id="open-pomodoro-btn">⏱️<span>Timer</span></button>
+                    <button class="action-btn" onclick="switchTab('photos')">🖼️<span>Photos</span></button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- BUTTONS TAB — flat 4×4 grid, fills viewport, no scrolling -->
+        <div id="tab-buttons" class="tab-content">
+            <div class="deck-grid-full">
+                <button class="action-btn" data-action="toggle_dnd">🌙<span>DND</span></button>
+                <button class="action-btn" data-action="toggle_locked_in">🎯<span>Focus</span></button>
+                <button class="action-btn" id="sleep-mode-btn">😴<span>Sleep</span></button>
+                <button class="action-btn" data-action="prepare_laptop">🚀<span>Prepare</span></button>
+
+                <button class="action-btn" data-action="open_calendar">📅<span>Calendar</span></button>
+                <button class="action-btn" data-action="open_assistant">🤖<span>Assistant</span></button>
+                <button class="action-btn" id="open-pomodoro-btn2">⏱️<span>Timer</span></button>
+                <button class="action-btn" onclick="switchTab('photos')">🖼️<span>Photos</span></button>
+
+                <button class="action-btn" data-action="bluetooth_toggle">🔵<span>BT Toggle</span></button>
+                <button class="action-btn" data-action="bluetooth_connect_headphones">🎧<span>HP Connect</span></button>
+                <button class="action-btn" data-action="bluetooth_disconnect_headphones">🎧<span>HP Disco</span></button>
+                <button class="action-btn" data-action="bluetooth_connect_speaker">🔊<span>SPK On</span></button>
+
+                <button class="action-btn" data-action="bluetooth_disconnect_speaker">🔊<span>SPK Off</span></button>
+                <button class="action-btn" data-action="open_bluetooth_settings">⚙️<span>BT Settings</span></button>
+                <button class="action-btn deck-empty" disabled aria-hidden="true"></button>
+                <button class="action-btn deck-empty" disabled aria-hidden="true"></button>
+            </div>
+        </div>
+
+        <!-- CALENDAR TAB -->
+        <div id="tab-calendar" class="tab-content">
+            <div class="cal-header">Today's Agenda</div>
+            <div id="calendar-list" class="agenda-list"></div>
+        </div>
+
+        <!-- PHOTOS TAB -->
+        <div id="tab-photos" class="tab-content photo-tab">
+            <div class="photo-wrap">
+                <img id="current-photo" src="" alt="" class="photo-img hidden">
+                <div id="no-photos-msg" class="no-photos hidden">
+                    <span>📷</span>
+                    <p>No photos found in /photos.<br>Drop images into the photos/ folder and refresh.</p>
+                </div>
+            </div>
+            <div class="photo-hud">
+                <span id="photo-clock" class="photo-clock">00:00</span>
+                <button class="btn small-btn" onclick="switchTab('buttons')">← Back</button>
+            </div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div id="tab-settings" class="tab-content">
+            <div class="settings-scroll">
+                <div class="card">
+                    <div class="card-label">Server</div>
+                    <div class="setting-row"><span>Status</span><span id="server-status">—</span></div>
+                    <div class="setting-row"><span>URL</span><span id="server-url" class="url-text">—</span></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Mac Stats</div>
+                    <div class="setting-row"><span>CPU</span><span id="setting-cpu">—</span></div>
+                    <div class="setting-row"><span>RAM</span><span id="setting-ram-pct">—</span> <span id="setting-ram-gb" class="muted-text"></span></div>
+                    <div class="setting-row"><span>Battery</span><span id="setting-battery">—</span></div>
+                    <div class="setting-row"><span>Uptime</span><span id="setting-uptime">—</span></div>
+                    <div class="setting-row"><span>GPU</span><span id="setting-gpu">—</span></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Kiosk</div>
+                    <div class="btn-group">
+                        <button class="btn small-btn" id="settings-fullscreen-btn">⛶ Request Fullscreen</button>
+                        <button class="btn small-btn" id="settings-reload-btn">🔄 Force Reload App</button>
+                    </div>
+                    <p class="muted-text" style="margin-top:0.5rem;">For Fully Kiosk Browser, enable fullscreen via browser settings for the cleanest display. The button above may be blocked by the browser.</p>
+                </div>
+
+                <div class="card security-card">
+                    <div class="card-label">Security</div>
+                    <p class="muted-text">Do <strong>not</strong> expose this app outside your local network. The tablet should not be logged into personal accounts.</p>
+                </div>
+
+                <div class="settings-actions">
+                    <button class="btn danger-btn" id="logout-btn">Logout</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+        <button class="nav-btn active" data-tab="home"><span class="nav-icon">🏠</span><span>Home</span></button>
+        <button class="nav-btn" data-tab="buttons"><span class="nav-icon">🎛️</span><span>Buttons</span></button>
+        <button class="nav-btn" data-tab="calendar"><span class="nav-icon">📅</span><span>Calendar</span></button>
+        <button class="nav-btn" data-tab="photos"><span class="nav-icon">🖼️</span><span>Photos</span></button>
+        <button class="nav-btn" data-tab="settings"><span class="nav-icon">⚙️</span><span>Settings</span></button>
+    </nav>
+
+</div>
+
+<!-- ===================== MODALS ===================== -->
+
+<!-- Sleep Modal -->
+<div id="sleep-modal" class="modal hidden">
+    <div class="modal-box card">
+        <h2>Sleep Mode</h2>
+        <p>Set alarm/wake time:</p>
+        <input type="time" id="wake-time" class="time-input">
+        <div class="modal-row">
+            <button class="btn" id="cancel-sleep-btn">Cancel</button>
+            <button class="btn primary-btn" id="confirm-sleep-btn">Start Sleep</button>
+        </div>
+    </div>
+</div>
+
+<!-- Pomodoro Modal -->
+<div id="pomodoro-modal" class="modal hidden">
+    <div class="modal-box card timer-box">
+        <h2>Timer</h2>
+        <div id="timer-display" class="timer-display">25:00</div>
+        <div class="timer-presets">
+            <button class="btn small-btn" data-time="25">25m</button>
+            <button class="btn small-btn" data-time="50">50m</button>
+            <button class="btn small-btn" data-time="custom">Custom</button>
+        </div>
+        <div class="modal-row">
+            <button class="btn" id="timer-toggle-btn">Start</button>
+            <button class="btn" id="timer-reset-btn">Reset</button>
+            <button class="btn danger-btn" id="close-pomodoro-btn">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<div class="version-indicator" id="version-indicator">App Version: {{VERSION}}</div>
+
+<script src="/static/app.js?v={{JS_VERSION}}"></script>
+</body>
+</html>

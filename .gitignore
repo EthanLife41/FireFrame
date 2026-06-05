@@ -1,0 +1,14 @@
+.env
+.venv
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+logs/
+desk-companion/photos/*.jpg
+desk-companion/photos/*.jpeg
+desk-companion/photos/*.png
+desk-companion/photos/*.gif
+desk-companion/photos/*.webp
+!desk-companion/photos/README.md
+backend/config.py

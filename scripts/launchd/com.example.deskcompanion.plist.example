@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.deskcompanion</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- REPLACE THIS WITH YOUR ACTUAL ABSOLUTE PATH TO start.sh -->
+        <string>/Users/ethanxu/Desktop/Amazon "Streamdeck"/desk-companion/scripts/start.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <!-- REPLACE WITH YOUR DESIRED LOG PATH -->
+    <string>/tmp/deskcompanion.out</string>
+
+    <key>StandardErrorPath</key>
+    <!-- REPLACE WITH YOUR DESIRED LOG PATH -->
+    <string>/tmp/deskcompanion.err</string>
+</dict>
+</plist>
