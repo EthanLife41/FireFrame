@@ -60,3 +60,6 @@ spec.loader.exec_module(dynamic_config)
 for key in dir(dynamic_config):
     if key.isupper():
         globals()[key] = getattr(dynamic_config, key)
+
+# True when a local backend/config.py is in use (vs the bundled example).
+CONFIG_IS_LOCAL = os.path.exists(LOCAL_CONFIG_PATH)

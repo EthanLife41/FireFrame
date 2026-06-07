@@ -317,33 +317,58 @@
             </div>
         </div>
 
-        <!-- SETTINGS TAB -->
+        <!-- SETTINGS TAB: app status, config health, maintenance (live stats live in the Stats tab) -->
         <div id="tab-settings" class="tab-content">
             <div class="settings-scroll">
+
+                <!-- App Status -->
                 <div class="card">
-                    <div class="card-label">Server</div>
-                    <div class="setting-row"><span>Status</span><span id="server-status">—</span></div>
-                    <div class="setting-row"><span>URL</span><span id="server-url" class="url-text">—</span></div>
+                    <div class="set-head">
+                        <div class="card-label">App Status</div>
+                        <button class="btn small-btn" id="set-refresh">⟳ Refresh</button>
+                    </div>
+                    <div class="setting-row"><span>Server</span><span id="set-server" class="st-val">—</span></div>
+                    <div class="setting-row"><span>Version</span><span id="set-version" class="muted-text">—</span></div>
+                    <div class="setting-row"><span>Host · Port</span><span id="set-hostport" class="muted-text">—</span></div>
+                    <div class="setting-row"><span>Tablet URL</span><span id="set-url" class="url-text">—</span></div>
+                    <div class="btn-group" style="margin-top:0.7rem;">
+                        <button class="btn small-btn" id="set-copy-url">📋 Copy URL</button>
+                    </div>
                 </div>
 
+                <!-- Connected Features -->
                 <div class="card">
-                    <div class="card-label">Mac Stats</div>
-                    <div class="setting-row"><span>CPU</span><span id="setting-cpu">—</span></div>
-                    <div class="setting-row"><span>RAM</span><span id="setting-ram-pct">—</span> <span id="setting-ram-gb" class="muted-text"></span></div>
-                    <div class="setting-row"><span>Battery</span><span id="setting-battery">—</span></div>
-                    <div class="setting-row"><span>Uptime</span><span id="setting-uptime">—</span></div>
-                    <div class="setting-row"><span>GPU</span><span id="setting-gpu">—</span></div>
+                    <div class="card-label">Connected Features</div>
+                    <div class="setting-row"><span>Calendar</span><span id="set-cal" class="st-val">—</span></div>
+                    <p id="set-cal-hint" class="muted-text setting-hint hidden"></p>
+                    <div class="setting-row"><span>Photos</span><span id="set-photos" class="st-val">—</span></div>
+                    <div class="setting-row"><span>Bluetooth</span><span id="set-bt" class="st-val">—</span></div>
+                    <div class="setting-row"><span>Shortcuts</span><span id="set-shortcuts" class="st-val">—</span></div>
+                    <div class="btn-group" style="margin-top:0.7rem;">
+                        <button class="btn small-btn" id="set-open-photos">🖼️ Open Photos Folder</button>
+                    </div>
                 </div>
 
+                <!-- Config Health -->
                 <div class="card">
-                    <div class="card-label">Kiosk</div>
+                    <div class="card-label">Config Health</div>
+                    <div class="setting-row"><span>Config file</span><span id="set-cfg" class="st-val">—</span></div>
+                    <div class="setting-row"><span>Dashboard password</span><span id="set-pw" class="st-val">—</span></div>
+                    <div class="setting-row"><span>Session secret</span><span id="set-secret" class="st-val">—</span></div>
+                    <p id="set-cfg-hint" class="muted-text setting-hint hidden"></p>
+                </div>
+
+                <!-- Maintenance -->
+                <div class="card">
+                    <div class="card-label">Maintenance</div>
                     <div class="btn-group">
                         <button class="btn small-btn" id="settings-fullscreen-btn">⛶ Request Fullscreen</button>
-                        <button class="btn small-btn" id="settings-reload-btn">🔄 Force Reload App</button>
+                        <button class="btn small-btn" id="settings-reload-btn">🔄 Reload App</button>
                     </div>
-                    <p class="muted-text" style="margin-top:0.5rem;">For Fully Kiosk Browser, enable fullscreen via browser settings for the cleanest display. The button above may be blocked by the browser.</p>
+                    <p class="muted-text" style="margin-top:0.6rem;">Changed your <strong>.env</strong> or config? Restart the FireFrame server in your terminal (Ctrl-C, then run it again), then tap <strong>Reload App</strong> here. For Fully Kiosk, enabling fullscreen in the browser's own settings is the most reliable.</p>
                 </div>
 
+                <!-- Security -->
                 <div class="card security-card">
                     <div class="card-label">Security</div>
                     <p class="muted-text">Do <strong>not</strong> expose this app outside your local network. The tablet should not be logged into personal accounts.</p>

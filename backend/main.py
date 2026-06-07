@@ -19,7 +19,8 @@ from backend.bluetooth import (
 )
 from backend.stats import get_mac_stats
 from backend.mac_stats import get_mac_stats as get_dashboard_stats
-from backend.photos import get_photos_payload, get_random_photo, PHOTOS_DIR
+from backend.health import get_settings_status
+from backend.photos import get_photos_payload, get_random_photo, open_photos_dir, PHOTOS_DIR
 from backend.calendar_service import (
     get_today,
     get_day,
@@ -193,6 +194,14 @@ async def mac_stats(user: bool = Depends(get_current_user)):
 @app.get("/api/mac-stats")
 async def mac_stats_dashboard(user: bool = Depends(get_current_user)):
     return get_dashboard_stats()
+
+@app.get("/api/settings")
+async def settings_status(user: bool = Depends(get_current_user)):
+    return get_settings_status()
+
+@app.post("/api/photos/open")
+async def photos_open(user: bool = Depends(get_current_user)):
+    return open_photos_dir()
 
 @app.get("/api/calendar/today")
 async def calendar_today(user: bool = Depends(get_current_user)):

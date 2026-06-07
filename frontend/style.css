@@ -621,8 +621,17 @@ html, body {
 }
 .setting-row:last-child { border-bottom: none; }
 .setting-row span:first-child { color: var(--muted); }
-.url-text { font-size: 0.78rem; color: var(--primary); word-break: break-all; text-align: right; }
+.url-text { font-size: 0.78rem; color: var(--primary); word-break: break-all; text-align: right; user-select: text; -webkit-user-select: text; }
 .muted-text { font-size: 0.82rem; color: var(--muted); }
+
+/* Settings: status values + section header with an inline action */
+.set-head { display: flex; justify-content: space-between; align-items: center; }
+.set-head .card-label { margin-bottom: 0; }
+.st-val { font-weight: 600; text-align: right; }
+.st-ok   { color: var(--green); }
+.st-warn { color: #ff9f0a; }
+.st-off  { color: var(--muted); }
+.setting-hint { margin: 0.1rem 0 0.4rem; line-height: 1.4; }
 .security-card p { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
 .settings-actions { display: flex; justify-content: center; padding-top: 0.25rem; }
 .btn-group { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }

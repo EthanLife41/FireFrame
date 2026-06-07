@@ -561,6 +561,12 @@ def get_upcoming() -> dict:
     return {**_meta, "events": _public(_collect(a, b)[:25])}
 
 
+def get_calendar_status() -> dict:
+    """Cheap status for the Settings page: the configured source plus the
+    metadata from the most recent load. Does not trigger a fetch."""
+    return {**_meta, "configured_source": (CALENDAR_SOURCE or "none").strip().lower()}
+
+
 def get_sources() -> dict:
     a = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     events = _collect(a, a + timedelta(days=max(1, int(CALENDAR_UPCOMING_DAYS))))

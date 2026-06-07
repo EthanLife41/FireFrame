@@ -178,6 +178,16 @@ def _rebuild_index(devices: list) -> list:
     return safe
 
 
+def get_bluetooth_support() -> dict:
+    """Cheap capability check for the Settings page. No system_profiler scan."""
+    return {
+        "available": _is_macos(),
+        "blueutil_installed": _have_blueutil(),
+        "connect_allowed": bool(BLUETOOTH_ALLOW_CONNECT),
+        "connect_supported": _connect_supported(),
+    }
+
+
 def get_bluetooth_status() -> dict:
     if not _is_macos():
         return {

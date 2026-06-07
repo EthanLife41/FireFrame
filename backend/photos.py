@@ -5,7 +5,9 @@ outside the repo. Images are never committed (see .gitignore).
 """
 
 import os
+import platform
 import random
+import subprocess
 import time
 
 from backend.config_loader import PHOTOS_DIR_OVERRIDE, PHOTO_INTERVAL_SECONDS
@@ -54,3 +56,15 @@ def get_photos_payload() -> dict:
         "count": len(photos),
         "interval_seconds": max(3, int(PHOTO_INTERVAL_SECONDS)),
     }
+
+
+def open_photos_dir() -> dict:
+    """Open the photos folder in Finder (macOS only). Fixed path, no user input."""
+    if platform.system() != "Darwin":
+        return {"success": False, "message": "Opening the folder is supported on macOS only."}
+    os.makedirs(PHOTOS_DIR, exist_ok=True)
+    try:
+        subprocess.run(["open", PHOTOS_DIR], check=True, capture_output=True, timeout=5)
+        return {"success": True, "message": "Opened the photos folder on the Mac."}
+    except Exception:
+        return {"success": False, "message": "Could not open the photos folder."}

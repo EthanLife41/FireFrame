@@ -69,6 +69,7 @@ function init() {
     setupEventModal();
     setupPhotos();
     setupMacStats();
+    setupSettings();
     setupVisibility();
 }
 
@@ -175,7 +176,6 @@ function showMainApp() {
     mainScreen.classList.add('active');
     mainScreen.classList.remove('hidden');
     loadHomeNextEvent();
-    fetchServerStatus();
     startStatsPolling();
 }
 
@@ -367,6 +367,7 @@ function switchTab(tabId) {
     if (tabId === 'photos') { startPhotoShow(); } else { stopPhotoShow(); }
     if (tabId === 'bluetooth') { loadBluetooth(); }
     if (tabId === 'calendar' && !calLoaded) { loadCalendarView(); }
+    if (tabId === 'settings') { loadSettings(); }
     // Mac Stats polls only while its tab is open, to stay cheap in the background.
     if (tabId === 'mac-stats') { startMacStats(); } else { stopMacStats(); }
 }
@@ -470,12 +471,6 @@ async function fetchStats() {
         setText('home-ram',      ram);
         setText('home-battery',  batt);
         setText('home-uptime',   up);
-        setText('setting-cpu',   cpu);
-        setText('setting-ram-pct', ram);
-        setText('setting-ram-gb',  `${d.ram_used_gb} / ${d.ram_total_gb} GB`);
-        setText('setting-battery', batt);
-        setText('setting-uptime',  up);
-        setText('setting-gpu',  d.gpu_available ? 'Available' : (d.gpu_note || 'N/A'));
     } catch { /* ignore */ }
 }
 
@@ -497,17 +492,117 @@ function formatBtStatus(d) {
     return n ? `${n} connected` : 'Unknown';
 }
 
-async function fetchServerStatus() {
+// ============================================================
+// SETTINGS  (app status, config health, maintenance)
+// Loaded on demand when the tab opens, plus a manual Refresh. No polling.
+// ============================================================
+function setupSettings() {
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+    on('set-refresh', loadSettings);
+    on('set-copy-url', copyTabletUrl);
+    on('set-open-photos', openPhotosFolder);
+}
+
+function setStatus(id, text, kind) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove('st-ok', 'st-warn', 'st-off');
+    if (kind) el.classList.add('st-' + kind);
+}
+
+function setHint(id, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('hidden', !text);
+}
+
+async function loadSettings() {
+    setText('set-url', window.location.origin);
+    const vi = document.getElementById('version-indicator');
+    if (vi) setText('set-version', vi.textContent.replace('FireFrame', '').trim() || '—');
+
     try {
-        const res = await fetch('/api/status');
-        if (res.ok) {
-            const d = await res.json();
-            setText('server-status', d.message || 'Running');
-        }
+        const s = await (await fetch('/api/status')).json();
+        setStatus('set-server', s.message || 'Running', 'ok');
     } catch {
-        setText('server-status', 'Offline');
+        setStatus('set-server', 'Offline', 'off');
     }
-    setText('server-url', window.location.href);
+
+    try {
+        renderSettings(await (await fetch('/api/settings')).json());
+    } catch {
+        ['set-cal', 'set-photos', 'set-bt', 'set-shortcuts', 'set-cfg', 'set-pw', 'set-secret']
+            .forEach(id => setStatus(id, 'Unavailable', 'off'));
+    }
+}
+
+function renderSettings(h) {
+    const sv = h.server || {};
+    setText('set-hostport', `${sv.host || '—'} · ${sv.port || ''}`);
+
+    // Calendar
+    const c = h.calendar || {};
+    if (!c.configured) {
+        setStatus('set-cal', 'Not configured', 'warn');
+        setHint('set-cal-hint', 'Set CALENDAR_SOURCE (demo, ics, or apple) in .env.');
+    } else if (c.connected) {
+        setStatus('set-cal', `Connected · ${c.source}`, 'ok');
+        setHint('set-cal-hint', '');
+    } else {
+        setStatus('set-cal', `Configured · ${c.source}`, 'warn');
+        setHint('set-cal-hint', c.message || 'Open the Calendar tab to verify it loads.');
+    }
+
+    // Photos
+    const p = h.photos || {};
+    if (!p.exists) setStatus('set-photos', 'Folder missing', 'warn');
+    else if (p.count > 0) setStatus('set-photos', `${p.count} photo${p.count === 1 ? '' : 's'} · ${p.folder}/`, 'ok');
+    else setStatus('set-photos', `Empty · ${p.folder}/`, 'warn');
+
+    // Bluetooth
+    const b = h.bluetooth || {};
+    if (!b.available) setStatus('set-bt', 'Unavailable (macOS only)', 'off');
+    else if (b.connect_supported) setStatus('set-bt', 'Ready · blueutil installed', 'ok');
+    else if (b.blueutil_installed) setStatus('set-bt', 'Listing only · connect disabled', 'warn');
+    else setStatus('set-bt', 'Listing only · no blueutil', 'warn');
+
+    // Shortcuts
+    const sc = h.shortcuts || {};
+    if (!sc.cli_available) setStatus('set-shortcuts', 'Shortcuts app not found', 'warn');
+    else if (sc.configured) setStatus('set-shortcuts', `${sc.count} configured`, 'ok');
+    else setStatus('set-shortcuts', 'None configured', 'warn');
+
+    // Config health
+    const cfg = h.config || {};
+    setStatus('set-cfg', cfg.local_config ? 'Local config in use' : 'Using example config', cfg.local_config ? 'ok' : 'warn');
+    setStatus('set-pw', cfg.password_is_default ? 'Default — change it' : 'Set', cfg.password_is_default ? 'warn' : 'ok');
+    setStatus('set-secret', cfg.secret_is_default ? 'Default — change it' : 'Set', cfg.secret_is_default ? 'warn' : 'ok');
+    const todo = [];
+    if (cfg.password_is_default) todo.push('DASHBOARD_PASSWORD');
+    if (cfg.secret_is_default) todo.push('SESSION_SECRET');
+    setHint('set-cfg-hint', todo.length ? `Set in .env: ${todo.join(', ')}.` : '');
+}
+
+async function copyTabletUrl() {
+    const url = window.location.origin;
+    try {
+        await navigator.clipboard.writeText(url);
+        showToast('Tablet URL copied.');
+    } catch {
+        showToast(url, false);   // clipboard blocked: show it so it can be typed
+    }
+}
+
+async function openPhotosFolder() {
+    try {
+        const res = await fetch('/api/photos/open', { method: 'POST' });
+        const d = await res.json();
+        showToast(d.success ? (d.message || 'Opened.') : `Error: ${d.message}`, !d.success);
+    } catch {
+        showToast('Connection error.', true);
+    }
 }
 
 // ============================================================
