@@ -74,7 +74,7 @@ SHORTCUT_ACTIONS = {
     "quick_note":       {"type": "shortcut", "shortcut": "FireFrame Quick Note"},
     "gpt":              {"type": "open_app_or_url", "app": "ChatGPT",
                          "url": "https://chatgpt.com/", "label": "ChatGPT"},
-    "wallpapers":       {"type": "open_app", "app": "MyWallpaper"},
+    "wallpapers":       {"type": "open_app", "app": "iWallpaper"},
     "prepare":          {"type": "prepare"},
 }
 

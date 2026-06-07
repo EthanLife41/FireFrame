@@ -122,7 +122,7 @@ Focus modes have no command-line equivalent on macOS, so they go through Shortcu
 | Spotify | Opens Spotify | Direct (`open -a`) | Install Spotify | None | `open -a Spotify` |
 | Quick Note | New quick note | macOS Shortcut | Create **FireFrame Quick Note** | Shortcuts | `shortcuts run "FireFrame Quick Note"` |
 | GPT | Opens the ChatGPT app, else the website | App or URL | Install ChatGPT (optional) | None | `open -a ChatGPT` |
-| Wallpapers | Opens the **MyWallpaper** app | Direct (`open -a`) | Install/rename in config | macOS may prompt | `open -a MyWallpaper` |
+| Wallpapers | Opens the **iWallpaper** app | Direct (`open -a`) | Install/rename in config | macOS may prompt | `open -a iWallpaper` |
 | 5 / 15 / 25 / 45 min | Starts FireFrame's built-in timer | In-app (no setup) | None | None | n/a |
 | Prepare | Opens your work apps + links | Direct (`open`) | Edit `PREPARE_APPS` / `PREPARE_URLS` | None | `open -a Spotify` |
 | Restart | Shows safe restart instructions | Info modal | None | None | n/a |
@@ -130,7 +130,7 @@ Focus modes have no command-line equivalent on macOS, so they go through Shortcu
 Notes:
 - **Shortcut names you must create:** `FireFrame DND`, `FireFrame Locked In`, `FireFrame Presentation Mode`, `FireFrame Break Mode`, `FireFrame Sleep Mode`, `FireFrame Quick Note`. (You can also point `prepare`/timers at Shortcuts named `FireFrame Prepare`, `FireFrame 5 Minute Timer`, etc. by editing the registry.)
 - **Timers** use FireFrame's own timer UI by default (most reliable). To use Shortcuts instead, set e.g. `"timer_25": {"type": "shortcut", "shortcut": "FireFrame 25 Minute Focus Timer"}` and add a button.
-- **MyWallpaper / Spotify / ChatGPT** are generic app names. If your app is named differently, change `app` in `SHORTCUT_ACTIONS`. If an app isn't installed, the button shows a clean "Is it installed?" error.
+- **iWallpaper / Spotify / ChatGPT** are app names. If your app is named differently, change `app` in `SHORTCUT_ACTIONS`. If an app isn't installed, the button shows a clean "Is it installed?" error.
 - **Sleep Mac** is the only confirmed action and won't fire from a stray tap or background refresh.
 - **Restart** never restarts the server remotely; it shows manual steps (Ctrl-C in the terminal, re-run your launch command, then Reload App).
 
