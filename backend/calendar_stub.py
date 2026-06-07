@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 def get_placeholder_events() -> list:
-    # Returns some placeholder events for v1 testing
+    # Sample events for the "demo" calendar source.
     now = datetime.now()
     
     events = [

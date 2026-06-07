@@ -63,6 +63,7 @@ function init() {
     setupReloadButtons();
     setupBluetooth();
     setupCalendar();
+    setupEventModal();
     setupPhotos();
     setupVisibility();
 }
@@ -668,20 +669,19 @@ function buildGrid(days, events) {
     });
     inner.appendChild(head);
 
-    // All-day row (only when there are all-day / multi-day events)
-    const allDay = days.map(day => allDayEventsFor(day, events));
-    if (allDay.some(list => list.length)) {
+    // All-day events get their own row, as blocks that span the days they cover.
+    const allDayItems = allDayLayout(days, events.filter(ev => ev.all_day));
+    if (allDayItems.length) {
+        const lanes = Math.max(...allDayItems.map(it => it.lane)) + 1;
         const row = el('div', 'cal-allday');
+        row.style.setProperty('--ad-lanes', lanes);
         row.appendChild(el('div', 'cal-allday-label', 'all-day'));
-        days.forEach((day, i) => {
-            const cell = el('div', 'cal-allday-cell');
-            allDay[i].forEach(ev => cell.appendChild(eventChip(ev)));
-            row.appendChild(cell);
-        });
+        allDayItems.forEach(it => row.appendChild(allDayBlock(it)));
         inner.appendChild(row);
     }
 
-    // Scrollable timed grid
+    // Scrollable timed grid (timed events only; all-day handled above)
+    const timed = events.filter(ev => !ev.all_day);
     const scroll = el('div', 'cal-scroll');
     const body = el('div', 'cal-body');
     body.style.height = (24 * CAL_HOUR_PX) + 'px';
@@ -696,7 +696,7 @@ function buildGrid(days, events) {
 
     days.forEach(day => {
         const col = el('div', 'cal-col' + (ymd(day) === today ? ' today' : ''));
-        layoutTimed(day, events).forEach(b => col.appendChild(b));
+        layoutTimed(day, timed).forEach(b => col.appendChild(b));
         body.appendChild(col);
     });
 
@@ -705,21 +705,43 @@ function buildGrid(days, events) {
     return inner;
 }
 
-function allDayEventsFor(day, events) {
-    const ds = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-    const de = new Date(ds.getTime() + 86400000);
-    return events.filter(ev => {
-        const es = new Date(ev.start), ee = new Date(ev.end);
-        if (ee <= ds || es >= de) return false;
-        return ev.all_day || (es <= ds && ee >= de);
+// Work out which day columns each all-day event spans, then stack overlapping
+// ones into separate lanes so they never sit on top of each other.
+function allDayLayout(days, events) {
+    const bounds = days.map(d => {
+        const ds = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        return [ds, new Date(ds.getTime() + 86400000)];
     });
+    const items = [];
+    events.forEach(ev => {
+        const es = new Date(ev.start), ee = new Date(ev.end);
+        let startIdx = -1, endIdx = -1;
+        bounds.forEach(([ds, de], i) => {
+            if (es < de && ee > ds) { if (startIdx < 0) startIdx = i; endIdx = i; }
+        });
+        if (startIdx >= 0) items.push({ ev, startIdx, span: endIdx - startIdx + 1 });
+    });
+    items.sort((a, b) => a.startIdx - b.startIdx || b.span - a.span);
+    const laneEnd = [];   // last covered column index per lane
+    items.forEach(it => {
+        let placed = false;
+        for (let L = 0; L < laneEnd.length; L++) {
+            if (it.startIdx > laneEnd[L]) { it.lane = L; laneEnd[L] = it.startIdx + it.span - 1; placed = true; break; }
+        }
+        if (!placed) { it.lane = laneEnd.length; laneEnd.push(it.startIdx + it.span - 1); }
+    });
+    return items;
 }
 
-function eventChip(ev) {
-    const c = el('div', 'cal-chip-ev', ev.title);
-    c.style.setProperty('--ev-hue', calHue(ev.calendar));
-    if (ev.location) c.title = ev.location;
-    return c;
+function allDayBlock(it) {
+    const ev = it.ev;
+    const b = el('div', 'cal-allday-ev', ev.title);
+    b.style.setProperty('--ev-hue', calHue(ev.calendar));
+    b.style.gridColumn = `${2 + it.startIdx} / span ${it.span}`;   // +1 axis, +1 to 1-base
+    b.style.gridRow = String(it.lane + 1);
+    if (ev.location) b.title = ev.location;
+    b.addEventListener('click', () => showEventDetails(ev));
+    return b;
 }
 
 // Place timed events for one day, splitting width across overlapping events.
@@ -729,8 +751,7 @@ function layoutTimed(day, events) {
     const items = [];
     events.forEach(ev => {
         const es = new Date(ev.start), ee = new Date(ev.end);
-        if (ee <= ds || es >= de) return;
-        if (ev.all_day || (es <= ds && ee >= de)) return;   // in the all-day row
+        if (ee <= ds || es >= de) return;   // not on this day
         const startH = Math.max(0, (es - ds) / 3600000);
         const endH = Math.min(24, (ee - ds) / 3600000);
         items.push({ ev, startH, endH: Math.max(endH, startH + 0.25) });
@@ -773,7 +794,52 @@ function timedBlock(it, nCols) {
     b.appendChild(el('div', 'cal-event-title', ev.title));
     b.appendChild(el('div', 'cal-event-time', `${fmtTime(ev.start)} – ${fmtTime(ev.end)}`));
     if (ev.location) b.title = ev.location;
+    b.addEventListener('click', () => showEventDetails(ev));
     return b;
+}
+
+// --- event details popup ---
+function setupEventModal() {
+    const modal = document.getElementById('event-modal');
+    if (!modal) return;
+    const close = () => modal.classList.add('hidden');
+    const btn = document.getElementById('ev-detail-close');
+    if (btn) btn.addEventListener('click', close);
+    modal.addEventListener('click', e => { if (e.target === modal) close(); });   // tap backdrop
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
+    });
+}
+
+function showEventDetails(ev) {
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const row = (id, show) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !show); };
+
+    set('ev-detail-title', ev.title || 'Untitled');
+    const dot = document.getElementById('ev-detail-dot');
+    if (dot) dot.style.background = `hsl(${calHue(ev.calendar)}, 70%, 60%)`;
+
+    const s = new Date(ev.start), e = new Date(ev.end);
+    set('ev-detail-when', ev.all_day ? 'All day' : `${fmtTime(ev.start)} – ${fmtTime(ev.end)}`);
+
+    const dOpt = { weekday: 'long', month: 'long', day: 'numeric' };
+    const dispEnd = ev.all_day ? new Date(e.getTime() - 1) : e;   // all-day end is exclusive midnight
+    const sameDay = s.toDateString() === dispEnd.toDateString();
+    set('ev-detail-date', sameDay
+        ? s.toLocaleDateString([], dOpt)
+        : `${s.toLocaleDateString([], dOpt)} – ${dispEnd.toLocaleDateString([], dOpt)}`);
+
+    set('ev-detail-loc', ev.location || '');
+    row('ev-detail-loc-row', !!ev.location);
+    set('ev-detail-cal', ev.calendar || '');
+    row('ev-detail-cal-row', !!ev.calendar);
+
+    const notes = document.getElementById('ev-detail-notes');
+    if (notes) {
+        notes.textContent = ev.description || '';
+        notes.classList.toggle('hidden', !ev.description);
+    }
+    document.getElementById('event-modal').classList.remove('hidden');
 }
 
 // Home tab: show the next upcoming event with a live countdown.

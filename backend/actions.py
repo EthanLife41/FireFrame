@@ -55,9 +55,7 @@ def handle_action(action_id: str, params: dict) -> dict:
         wake_time = params.get("wake_time")
         if not wake_time:
             return {"success": False, "message": "Wake time is required."}
-        # For v1, we just trigger the shortcut. Passing params to shortcuts can be tricky,
-        # so we will simulate success or call a shortcut without params for safety.
-        # TODO: Implement passing `wake_time` safely to the shortcut if needed.
+        # Runs the shortcut without args; wake_time is just echoed back for now.
         res = run_shortcut("Desk Sleep Mode")
         if res["success"]:
             res["message"] = f"Sleep Mode activated. Alarm set for {wake_time}."

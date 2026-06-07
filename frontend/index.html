@@ -311,6 +311,26 @@
     </div>
 </div>
 
+<!-- Event Details Modal -->
+<div id="event-modal" class="modal hidden">
+    <div class="modal-box card event-detail">
+        <div class="event-detail-head">
+            <span id="ev-detail-dot" class="ev-detail-dot"></span>
+            <h2 id="ev-detail-title">Event</h2>
+        </div>
+        <div class="ev-detail-rows">
+            <div class="ev-detail-row"><span class="ev-detail-label">When</span><span id="ev-detail-when"></span></div>
+            <div class="ev-detail-row"><span class="ev-detail-label">Date</span><span id="ev-detail-date"></span></div>
+            <div class="ev-detail-row" id="ev-detail-loc-row"><span class="ev-detail-label">Location</span><span id="ev-detail-loc"></span></div>
+            <div class="ev-detail-row" id="ev-detail-cal-row"><span class="ev-detail-label">Calendar</span><span id="ev-detail-cal"></span></div>
+        </div>
+        <div id="ev-detail-notes" class="ev-detail-notes hidden"></div>
+        <div class="modal-row">
+            <button class="btn primary-btn" id="ev-detail-close">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="toast hidden"></div>
 

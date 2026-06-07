@@ -98,6 +98,9 @@ def _shape(events: list) -> list:
         name = (ev.get("calendar") or "").strip()
         uid = str(ev.get("uid") or ev.get("id") or "").strip()
         eid = uid or hashlib.sha1(f"{title}|{start.isoformat()}".encode("utf-8")).hexdigest()[:12]
+        desc = (ev.get("description") or ev.get("notes") or "").strip()
+        if len(desc) > 600:   # keep the payload (and the popover) small
+            desc = desc[:600].rstrip() + "..."
         cleaned.append(
             {
                 "id": eid,
@@ -106,6 +109,7 @@ def _shape(events: list) -> list:
                 "end": end.isoformat(),
                 "all_day": bool(ev.get("all_day") or ev.get("allday")),
                 "location": (ev.get("location") or "").strip(),
+                "description": desc,
                 "calendar": name,
                 "calendar_id": hashlib.sha1(name.encode("utf-8")).hexdigest()[:8] if name else "",
                 "_start_dt": start,
@@ -156,6 +160,11 @@ def _ics_datetime(prop: str, value: str):
         return None, False
 
 
+def _ics_unescape(value: str) -> str:
+    return (value.replace("\\n", "\n").replace("\\N", "\n")
+                 .replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\").strip())
+
+
 def _read_ics_text(source: str) -> str:
     # A URL lets you use the Apple/Google "secret iCal address". Keep it in .env.
     if source.lower().startswith(("http://", "https://")):
@@ -192,6 +201,8 @@ def _parse_ics(source: str) -> list:
                 cur["title"] = val.strip()
             elif name == "LOCATION":
                 cur["location"] = val.strip()
+            elif name == "DESCRIPTION":
+                cur["description"] = _ics_unescape(val)
             elif name == "UID":
                 cur["uid"] = val.strip()
             elif name == "DTSTART":
@@ -338,6 +349,7 @@ def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
                 "end": datetime.fromtimestamp(ed.timeIntervalSince1970()).isoformat() if ed else None,
                 "allday": bool(ev.isAllDay()),
                 "location": ev.location() or "",
+                "description": ev.notes() or "",
                 "calendar": cal.title() if cal else "",
             })
         except Exception:

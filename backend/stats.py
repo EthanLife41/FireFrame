@@ -27,8 +27,7 @@ def get_mac_stats() -> dict:
     # Uptime
     uptime_seconds = int(time.time() - BOOT_TIME)
     
-    # GPU - Best effort. Returning false for v1 to avoid heavy dependencies 
-    # like system_profiler which can be slow and expose private identifiers.
+    # GPU skipped on purpose: system_profiler is slow and leaks identifiers.
     gpu_available = False
     gpu_note = "GPU stats unavailable on this macOS setup without heavy polling."
     
