@@ -226,6 +226,97 @@
             </div>
         </div>
 
+        <!-- MAC STATS TAB -->
+        <div id="tab-mac-stats" class="tab-content ms-tab">
+            <div class="ms-head">
+                <div>
+                    <div class="card-label">Mac Stats</div>
+                    <div id="ms-subtitle" class="ms-subtitle">Loading...</div>
+                </div>
+                <div class="ms-head-right">
+                    <span id="ms-updated" class="ms-updated"></span>
+                    <button class="btn small-btn" id="ms-refresh-btn" aria-label="Refresh stats">⟳</button>
+                </div>
+            </div>
+            <div id="ms-error" class="ms-state hidden">Unable to load Mac stats.</div>
+
+            <div id="ms-grid" class="ms-grid">
+                <!-- System overview -->
+                <div class="card ms-card ms-wide">
+                    <div class="card-label">System</div>
+                    <div id="ms-name" class="ms-ov-name">—</div>
+                    <div class="ms-kv"><span>macOS</span><span id="ms-os">—</span></div>
+                    <div class="ms-kv"><span>Uptime</span><span id="ms-uptime">—</span></div>
+                    <div class="ms-kv"><span>Local time</span><span id="ms-time">—</span></div>
+                </div>
+
+                <!-- CPU -->
+                <div class="card ms-card">
+                    <div class="ms-card-top"><span class="card-label">CPU</span><span class="ms-big" id="ms-cpu-pct">—</span></div>
+                    <div class="ms-bar"><div class="ms-bar-fill" id="ms-cpu-bar"></div></div>
+                    <div class="ms-sub" id="ms-cpu-cores">—</div>
+                </div>
+
+                <!-- Memory -->
+                <div class="card ms-card">
+                    <div class="ms-card-top"><span class="card-label">Memory</span><span class="ms-big" id="ms-mem-pct">—</span></div>
+                    <div class="ms-bar"><div class="ms-bar-fill" id="ms-mem-bar"></div></div>
+                    <div class="ms-sub" id="ms-mem-detail">—</div>
+                </div>
+
+                <!-- Battery -->
+                <div class="card ms-card">
+                    <div class="ms-card-top"><span class="card-label">Battery</span><span class="ms-big" id="ms-batt-pct">—</span></div>
+                    <div class="ms-bar"><div class="ms-bar-fill" id="ms-batt-bar"></div></div>
+                    <div class="ms-sub" id="ms-batt-detail">—</div>
+                </div>
+
+                <!-- Storage -->
+                <div class="card ms-card">
+                    <div class="ms-card-top"><span class="card-label">Storage</span><span class="ms-big" id="ms-disk-pct">—</span></div>
+                    <div class="ms-bar"><div class="ms-bar-fill" id="ms-disk-bar"></div></div>
+                    <div class="ms-sub" id="ms-disk-detail">—</div>
+                </div>
+
+                <!-- Network -->
+                <div class="card ms-card">
+                    <div class="card-label">Network</div>
+                    <div class="ms-kv"><span>Wi-Fi</span><span id="ms-wifi">—</span></div>
+                    <div class="ms-kv"><span>Local IP</span><span id="ms-ip" class="ms-mono">—</span></div>
+                </div>
+
+                <!-- Network speed -->
+                <div class="card ms-card">
+                    <div class="card-label">Network Speed</div>
+                    <div class="ms-speed-row">
+                        <div class="ms-speed-item"><span class="ms-speed-arrow down">↓</span><span class="ms-speed-val" id="ms-down">—</span></div>
+                        <div class="ms-speed-item"><span class="ms-speed-arrow up">↑</span><span class="ms-speed-val" id="ms-up">—</span></div>
+                    </div>
+                </div>
+
+                <!-- Volume -->
+                <div class="card ms-card">
+                    <div class="card-label">Audio</div>
+                    <div class="ms-kv"><span>Volume</span><span id="ms-volume">—</span></div>
+                </div>
+
+                <!-- Top processes -->
+                <div class="card ms-card ms-wide">
+                    <div class="card-label">Top Processes</div>
+                    <div class="ms-proc-cols">
+                        <div class="ms-proc-col">
+                            <div class="ms-proc-h">By CPU</div>
+                            <div id="ms-proc-cpu" class="ms-proc-list"></div>
+                        </div>
+                        <div class="ms-proc-col">
+                            <div class="ms-proc-h">By Memory</div>
+                            <div id="ms-proc-mem" class="ms-proc-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- SETTINGS TAB -->
         <div id="tab-settings" class="tab-content">
             <div class="settings-scroll">
@@ -273,6 +364,7 @@
         <button class="nav-btn" data-tab="bluetooth"><span class="nav-icon">🔵</span><span>Bluetooth</span></button>
         <button class="nav-btn" data-tab="calendar"><span class="nav-icon">📅</span><span>Calendar</span></button>
         <button class="nav-btn" data-tab="photos"><span class="nav-icon">🖼️</span><span>Photos</span></button>
+        <button class="nav-btn" data-tab="mac-stats"><span class="nav-icon">📊</span><span>Stats</span></button>
         <button class="nav-btn" data-tab="settings"><span class="nav-icon">⚙️</span><span>Settings</span></button>
     </nav>
 

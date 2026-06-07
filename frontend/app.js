@@ -17,6 +17,9 @@ let isLoggedIn    = false;
 let statsInterval = null;
 let btStatusInterval = null;
 let calendarCountdownInterval = null;
+let macStatsInterval = null;
+let macStatsClock = null;
+let currentTab    = 'home';
 let pinBuffer     = '';
 const MAX_PIN_LEN = 4;
 
@@ -65,14 +68,20 @@ function init() {
     setupCalendar();
     setupEventModal();
     setupPhotos();
+    setupMacStats();
     setupVisibility();
 }
 
 // Pause background polling when the tab/screen isn't visible.
 function setupVisibility() {
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) stopStatsPolling();
-        else if (isLoggedIn) startStatsPolling();
+        if (document.hidden) {
+            stopStatsPolling();
+            stopMacStats();
+        } else if (isLoggedIn) {
+            startStatsPolling();
+            if (currentTab === 'mac-stats') startMacStats();
+        }
     });
 }
 
@@ -149,6 +158,7 @@ logoutBtn.addEventListener('click', async () => {
 function showLogin() {
     isLoggedIn = false;
     stopStatsPolling();
+    stopMacStats();
     loginScreen.classList.add('active');
     loginScreen.classList.remove('hidden');
     mainScreen.classList.add('hidden');
@@ -345,6 +355,7 @@ function setupNavigation() {
 }
 
 function switchTab(tabId) {
+    currentTab = tabId;
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     const activeNavBtn = document.querySelector(`.nav-btn[data-tab="${tabId}"]`);
     if (activeNavBtn) activeNavBtn.classList.add('active');
@@ -356,6 +367,8 @@ function switchTab(tabId) {
     if (tabId === 'photos') { startPhotoShow(); } else { stopPhotoShow(); }
     if (tabId === 'bluetooth') { loadBluetooth(); }
     if (tabId === 'calendar' && !calLoaded) { loadCalendarView(); }
+    // Mac Stats polls only while its tab is open, to stay cheap in the background.
+    if (tabId === 'mac-stats') { startMacStats(); } else { stopMacStats(); }
 }
 window.switchTab = switchTab; // used by inline onclick
 
@@ -1013,6 +1026,156 @@ async function btAction(want, id, btnEl) {
         // Give the radio a moment, then refresh the list to reflect new state.
         setTimeout(() => loadBluetooth(true), 1200);
     }
+}
+
+// ============================================================
+// MAC STATS DASHBOARD
+// ============================================================
+// Polled every 5s, but only while the Stats tab is open and the page is
+// visible (see switchTab / setupVisibility). Heavier reads are cached on the
+// server, so this stays cheap to leave running.
+const MAC_STATS_POLL_MS = 5000;
+
+function setupMacStats() {
+    const btn = document.getElementById('ms-refresh-btn');
+    if (btn) btn.addEventListener('click', () => fetchMacStats());
+}
+
+function startMacStats() {
+    if (!macStatsInterval) {
+        fetchMacStats();
+        macStatsInterval = setInterval(fetchMacStats, MAC_STATS_POLL_MS);
+    }
+    if (!macStatsClock) {
+        tickMacStatsClock();
+        macStatsClock = setInterval(tickMacStatsClock, 1000);
+    }
+}
+
+function stopMacStats() {
+    clearInterval(macStatsInterval);
+    macStatsInterval = null;
+    clearInterval(macStatsClock);
+    macStatsClock = null;
+}
+
+function tickMacStatsClock() {
+    setText('ms-time', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+}
+
+async function fetchMacStats() {
+    if (!isLoggedIn) return;
+    const errEl = document.getElementById('ms-error');
+    try {
+        const res = await fetch('/api/mac-stats');
+        if (!res.ok) throw new Error('bad status');
+        const d = await res.json();
+        if (errEl) errEl.classList.add('hidden');
+        renderMacStats(d);
+    } catch {
+        if (errEl) errEl.classList.remove('hidden');
+    }
+}
+
+function renderMacStats(d) {
+    const sys = d.system || {};
+    setText('ms-subtitle', d.is_mac ? (sys.name || '') : 'Some stats are macOS-only on this platform.');
+    setText('ms-name', sys.name || '—');
+    setText('ms-os', sys.os_version ? `${sys.os_name} ${sys.os_version}` : (sys.os_name || '—'));
+    setText('ms-uptime', fmtUptime(sys.uptime_seconds));
+    setText('ms-updated', 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+    // CPU
+    const cpu = d.cpu || {};
+    setText('ms-cpu-pct', fmtPct(cpu.percent));
+    setBar('ms-cpu-bar', cpu.percent);
+    setText('ms-cpu-cores', cpu.cores_logical ? `${cpu.cores_logical} cores` : '—');
+
+    // Memory
+    const mem = d.memory || {};
+    setText('ms-mem-pct', fmtPct(mem.percent));
+    setBar('ms-mem-bar', mem.percent);
+    setText('ms-mem-detail', mem.used_gb != null ? `${mem.used_gb} / ${mem.total_gb} GB · ${mem.available_gb} GB free` : '—');
+
+    // Battery
+    const b = d.battery || {};
+    if (b.available) {
+        setText('ms-batt-pct', b.percent + '%');
+        setBar('ms-batt-bar', b.percent);
+        let detail = b.charging ? 'Charging' : (b.power_source || 'On battery');
+        if (b.time_left) detail += ` · ${b.time_left} left`;
+        setText('ms-batt-detail', detail);
+    } else {
+        setText('ms-batt-pct', 'N/A');
+        setBar('ms-batt-bar', 0);
+        setText('ms-batt-detail', 'No battery detected');
+    }
+
+    // Storage
+    const dk = d.disk || {};
+    if (dk.available) {
+        setText('ms-disk-pct', fmtPct(dk.percent));
+        setBar('ms-disk-bar', dk.percent);
+        setText('ms-disk-detail', `${dk.used_gb} / ${dk.total_gb} GB · ${dk.free_gb} GB free`);
+    } else {
+        setText('ms-disk-pct', '—');
+        setBar('ms-disk-bar', 0);
+        setText('ms-disk-detail', 'Unavailable');
+    }
+
+    // Network
+    const n = d.network || {};
+    setText('ms-wifi', n.wifi_ssid || 'Unavailable');
+    setText('ms-ip', n.local_ip || 'Unavailable');
+    setText('ms-down', fmtRate(n.down_bps));
+    setText('ms-up', fmtRate(n.up_bps));
+
+    // Processes
+    renderProcList('ms-proc-cpu', (d.processes && d.processes.by_cpu) || [], 'cpu');
+    renderProcList('ms-proc-mem', (d.processes && d.processes.by_mem) || [], 'mem');
+
+    // Volume
+    const v = d.volume || {};
+    setText('ms-volume', v.available ? (v.muted ? 'Muted' : v.percent + '%') : 'Unavailable');
+}
+
+function fmtPct(x) { return (x == null) ? '—' : Math.round(x) + '%'; }
+
+function fmtUptime(s) {
+    s = s || 0;
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+}
+
+function fmtRate(bps) {
+    if (!bps || bps < 1) return '0 KB/s';
+    const kb = bps / 1024;
+    if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB/s`;
+    return `${(kb / 1024).toFixed(1)} MB/s`;
+}
+
+function setBar(id, pct) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = Math.max(0, Math.min(100, pct || 0));
+    el.style.width = v + '%';
+    el.classList.toggle('warn', v >= 75 && v < 90);
+    el.classList.toggle('crit', v >= 90);
+}
+
+function renderProcList(id, rows, key) {
+    const wrap = document.getElementById(id);
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    if (!rows.length) { wrap.appendChild(el('div', 'ms-proc-empty', '—')); return; }
+    rows.forEach(r => {
+        const row = el('div', 'ms-proc-row');
+        row.appendChild(el('span', 'nm', r.name));
+        row.appendChild(el('span', 'vl', (key === 'cpu' ? r.cpu : r.mem) + '%'));
+        wrap.appendChild(row);
+    });
 }
 
 function fmtTime(iso) {

@@ -18,6 +18,7 @@ from backend.bluetooth import (
     disconnect_device,
 )
 from backend.stats import get_mac_stats
+from backend.mac_stats import get_mac_stats as get_dashboard_stats
 from backend.photos import get_photos_payload, get_random_photo, PHOTOS_DIR
 from backend.calendar_service import (
     get_today,
@@ -188,6 +189,10 @@ async def bluetooth_disconnect(req: DeviceRequest, user: bool = Depends(get_curr
 @app.get("/api/stats")
 async def mac_stats(user: bool = Depends(get_current_user)):
     return get_mac_stats()
+
+@app.get("/api/mac-stats")
+async def mac_stats_dashboard(user: bool = Depends(get_current_user)):
+    return get_dashboard_stats()
 
 @app.get("/api/calendar/today")
 async def calendar_today(user: bool = Depends(get_current_user)):
