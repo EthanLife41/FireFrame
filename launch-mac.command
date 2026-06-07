@@ -4,4 +4,16 @@
 # Finder > Get Info > paste an image onto the icon. Close the Terminal window
 # (or Ctrl+C) to stop the server.
 cd "$(dirname "$0")"
-exec ./scripts/start.sh
+
+IP=$(ipconfig getifaddr en0)
+
+echo "======================================"
+echo "FireFrame starting..."
+echo ""
+echo "Mac Wi-Fi IP: $IP"
+echo "Open on tablet:"
+echo "http://$IP:8765"
+echo "======================================"
+echo ""
+
+./scripts/start.sh
