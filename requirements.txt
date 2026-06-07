@@ -3,3 +3,8 @@ uvicorn==0.27.1
 python-dotenv==1.0.1
 itsdangerous==2.1.2
 psutil==5.9.8
+
+# Optional, macOS only: fast Apple Calendar reader via EventKit. Without it the
+# app falls back to a slower AppleScript path. The marker keeps it from being
+# installed on non-macOS dev machines.
+pyobjc-framework-EventKit==10.3.1; sys_platform == "darwin"

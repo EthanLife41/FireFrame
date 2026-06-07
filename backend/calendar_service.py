@@ -4,8 +4,9 @@
     demo   built-in placeholder events, handy for testing the UI
     ics    one or more local .ics files, or an https URL (CALENDAR_ICS_PATH /
            CALENDAR_ICS_PATHS)
-    apple  Apple Calendar via osascript/JXA, reading every accessible calendar
-           (needs Automation permission)
+    apple  Apple Calendar. Uses EventKit (fast) when pyobjc-framework-EventKit
+           is installed, otherwise falls back to osascript/JXA (slow). Reads
+           every accessible calendar; needs Calendar access permission.
 
 Apple Calendar is read one month at a time and cached, so the first view only
 loads the month(s) it touches and navigating to another month fetches just
@@ -273,6 +274,84 @@ def _query_apple_calendar(start_dt: datetime, end_dt: datetime) -> list:
     return json.loads(proc.stdout)
 
 
+# EventKit (PyObjC) is the fast path: it skips Calendar.app's very slow
+# AppleScript "whose" queries. Optional, macOS only:
+#     pip install pyobjc-framework-EventKit
+_eventkit = {"checked": False, "ok": False}
+
+# EKAuthorizationStatus values
+_EK_DENIED = 2
+_EK_AUTHORIZED = 3   # also "full access" on macOS 14+
+
+
+def _eventkit_available() -> bool:
+    if not _eventkit["checked"]:
+        _eventkit["checked"] = True
+        try:
+            import EventKit  # noqa: F401
+            from Foundation import NSDate  # noqa: F401
+            _eventkit["ok"] = True
+        except Exception:
+            _eventkit["ok"] = False
+    return _eventkit["ok"]
+
+
+def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
+    import threading
+    from EventKit import EKEventStore
+    from Foundation import NSDate
+
+    status = EKEventStore.authorizationStatusForEntityType_(0)  # 0 = events
+    if status == _EK_DENIED:
+        raise PermissionError("calendar_access_denied")
+
+    store = EKEventStore.alloc().init()
+    if status != _EK_AUTHORIZED:
+        granted = {"ok": False}
+        done = threading.Event()
+
+        def handler(ok, err):
+            granted["ok"] = bool(ok)
+            done.set()
+
+        if hasattr(store, "requestFullAccessToEventsWithCompletion_"):
+            store.requestFullAccessToEventsWithCompletion_(handler)   # macOS 14+
+        else:
+            store.requestAccessToEntityType_completion_(0, handler)
+        done.wait(timeout=20)
+        if not granted["ok"]:
+            raise PermissionError("calendar_access_denied")
+
+    ns_start = NSDate.dateWithTimeIntervalSince1970_(start_dt.timestamp())
+    ns_end = NSDate.dateWithTimeIntervalSince1970_(end_dt.timestamp())
+    predicate = store.predicateForEventsWithStartDate_endDate_calendars_(ns_start, ns_end, None)
+
+    out = []
+    for ev in (store.eventsMatchingPredicate_(predicate) or []):
+        try:
+            sd, ed = ev.startDate(), ev.endDate()
+            cal = ev.calendar()
+            out.append({
+                "uid": ev.calendarItemIdentifier(),
+                "title": ev.title(),
+                "start": datetime.fromtimestamp(sd.timeIntervalSince1970()).isoformat() if sd else None,
+                "end": datetime.fromtimestamp(ed.timeIntervalSince1970()).isoformat() if ed else None,
+                "allday": bool(ev.isAllDay()),
+                "location": ev.location() or "",
+                "calendar": cal.title() if cal else "",
+            })
+        except Exception:
+            pass
+    return out
+
+
+def _apple_fetch(start_dt: datetime, end_dt: datetime) -> list:
+    """Read a date range from Apple Calendar: EventKit if available, else JXA."""
+    if _eventkit_available():
+        return _query_apple_eventkit(start_dt, end_dt)
+    return _query_apple_calendar(start_dt, end_dt)
+
+
 # --- load + cache ---
 
 def _set_meta(data: dict) -> None:
@@ -374,20 +453,24 @@ def _fetch_month_locked(d: date):
         return None
     start, nxt = _month_bounds(d)
     try:
-        _months[ym] = {"events": _shape(_query_apple_calendar(start, nxt)), "ts": time.time()}
+        _months[ym] = {"events": _shape(_apple_fetch(start, nxt)), "ts": time.time()}
         _evict_months()
         return None
+    except PermissionError:
+        return ("permission",
+                "FireFrame needs Calendar access. Enable it in System Settings > Privacy & "
+                "Security > Calendars (and approve any Automation prompt), then retry.")
     except subprocess.TimeoutExpired:
         return ("timeout",
-                "Apple Calendar took too long to respond. Approve the Automation prompt "
-                "(System Settings > Privacy & Security > Automation), then retry, or use an "
-                "ICS source if you have very large calendars.")
+                "Apple Calendar (AppleScript) is too slow on this Mac. Install the faster "
+                "EventKit reader with: ./.venv/bin/pip install pyobjc-framework-EventKit "
+                "then restart, or use an ICS source.")
     except FileNotFoundError:
         return ("no_osascript", "osascript is not available.")
     except Exception:
         return ("unavailable",
-                "Could not read Apple Calendar. Grant Automation permission "
-                "(System Settings > Privacy & Security > Automation) or use ICS.")
+                "Could not read Apple Calendar. Grant Calendar access (System Settings > "
+                "Privacy & Security > Calendars) or use an ICS source.")
 
 
 def _collect_apple(a: datetime, b: datetime) -> list:

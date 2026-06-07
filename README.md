@@ -62,7 +62,8 @@ Set `CALENDAR_SOURCE`, restart, and open the Calendar tab. The Calendar tab is a
 **Apple Calendar (`apple`) is the recommended option.** It reads every accessible calendar in macOS Calendar.app (including Google accounts you have added there) and handles recurring events.
 
 1. Set `CALENDAR_SOURCE=apple`.
-2. Restart. The first load triggers a macOS Automation prompt; approve it. If it does not appear or it errors, enable it under **System Settings > Privacy & Security > Automation > [your terminal app] > Calendar**. The permission attaches to whatever launches the server, so re-approve if you change launcher.
+2. **Install the fast reader (recommended):** `pip install pyobjc-framework-EventKit` into the same environment that runs the server (it's already in `requirements.txt` for macOS). FireFrame uses EventKit when present and otherwise falls back to a much slower AppleScript path that can time out on large calendars.
+3. Restart. The first load asks for **Calendar** access; approve it. If it does not appear or it errors, enable it under **System Settings > Privacy & Security > Calendars** (and **Automation** if you are on the AppleScript fallback). The grant attaches to whatever launches the server, so re-approve if you change launcher.
 
 To include Google here, add the account in Calendar.app (**Settings > Accounts > + > Google**).
 
