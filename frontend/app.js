@@ -461,9 +461,10 @@ async function fetchStats() {
         const cpu  = (d.cpu_percent !== undefined && d.cpu_percent !== null) ? d.cpu_percent.toFixed(1) + '%' : '—';
         const ram  = (d.ram_percent !== undefined && d.ram_percent !== null) ? d.ram_percent.toFixed(1) + '%' : '—';
         const batt = d.battery_available ? d.battery_percent + '%' : 'N/A';
-        const h    = Math.floor((d.uptime_seconds || 0) / 3600);
-        const m    = Math.floor(((d.uptime_seconds || 0) % 3600) / 60);
-        const up   = `${h}h ${m}m`;
+        const secs = d.uptime_seconds || 0;
+        const days = Math.floor(secs / 86400);
+        const hrs  = Math.floor((secs % 86400) / 3600);
+        const up   = days > 0 ? `${days}d ${hrs}h` : `${hrs}h`;
 
         setText('home-cpu',      cpu);
         setText('home-ram',      ram);
@@ -1095,7 +1096,9 @@ function renderMacStats(d) {
     const mem = d.memory || {};
     setText('ms-mem-pct', fmtPct(mem.percent));
     setBar('ms-mem-bar', mem.percent);
-    setText('ms-mem-detail', mem.used_gb != null ? `${mem.used_gb} / ${mem.total_gb} GB · ${mem.available_gb} GB free` : '—');
+    setText('ms-mem-detail', mem.used_gb != null
+        ? `${mem.used_gb} GB used · ${mem.available_gb} GB avail · ${mem.total_gb} GB total`
+        : '—');
 
     // Battery
     const b = d.battery || {};
@@ -1116,7 +1119,7 @@ function renderMacStats(d) {
     if (dk.available) {
         setText('ms-disk-pct', fmtPct(dk.percent));
         setBar('ms-disk-bar', dk.percent);
-        setText('ms-disk-detail', `${dk.used_gb} / ${dk.total_gb} GB · ${dk.free_gb} GB free`);
+        setText('ms-disk-detail', `${dk.used_gb} GB used · ${dk.free_gb} GB free · ${dk.total_gb} GB total`);
     } else {
         setText('ms-disk-pct', '—');
         setBar('ms-disk-bar', 0);
@@ -1125,7 +1128,7 @@ function renderMacStats(d) {
 
     // Network
     const n = d.network || {};
-    setText('ms-wifi', n.wifi_ssid || 'Unavailable');
+    setText('ms-conn', n.connected ? 'Connected' : 'Not connected');
     setText('ms-ip', n.local_ip || 'Unavailable');
     setText('ms-down', fmtRate(n.down_bps));
     setText('ms-up', fmtRate(n.up_bps));
@@ -1150,10 +1153,8 @@ function fmtUptime(s) {
 }
 
 function fmtRate(bps) {
-    if (!bps || bps < 1) return '0 KB/s';
-    const kb = bps / 1024;
-    if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB/s`;
-    return `${(kb / 1024).toFixed(1)} MB/s`;
+    // bytes/s -> MB/s using decimal MB (1 MB = 1,000,000 bytes).
+    return `${(Math.max(0, bps || 0) / 1e6).toFixed(2)} MB/s`;
 }
 
 function setBar(id, pct) {

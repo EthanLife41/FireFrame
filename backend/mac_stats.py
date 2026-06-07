@@ -1,13 +1,14 @@
 """Lightweight local system stats for the Mac Stats dashboard.
 
 Everything here is read-only and cheap. psutil covers CPU, memory, battery,
-disk, processes, and network counters. A few macOS extras (computer name, Wi-Fi
-name, volume, now playing) shell out to small, well-known commands and are
-cached so they never run on every poll. Heavier reads are serialised behind a
-lock so two requests can't spawn the same subprocess at once. Nothing is logged
-and nothing is written to disk.
+disk, processes, and network counters. A couple of macOS extras (computer name,
+volume) shell out to small, well-known commands and are cached so they never run
+on every poll. Heavier reads are serialised behind a lock so two requests can't
+spawn the same subprocess at once. Nothing is logged and nothing is written to
+disk.
 """
 
+import os
 import platform
 import socket
 import subprocess
@@ -124,11 +125,17 @@ def _cpu():
 
 def _memory():
     m = psutil.virtual_memory()
+    # psutil's `used` on macOS is active+wired only, which disagrees with both
+    # `percent` and Activity Monitor's "Memory Used". Derive used from
+    # total - available so used/total matches `percent` (= (total-avail)/total).
+    # RAM is sized in powers of two, so GiB (1024^3) makes total read e.g. 24.0.
+    gib = 1024 ** 3
+    used = m.total - m.available
     return {
         "percent": m.percent,
-        "used_gb": round(m.used / 1024 ** 3, 1),
-        "total_gb": round(m.total / 1024 ** 3, 1),
-        "available_gb": round(m.available / 1024 ** 3, 1),
+        "used_gb": round(used / gib, 1),
+        "total_gb": round(m.total / gib, 1),
+        "available_gb": round(m.available / gib, 1),
     }
 
 
@@ -159,16 +166,24 @@ def _battery():
 
 def _disk():
     def produce():
+        # On macOS, "/" is the read-only system volume (its `used` is just the
+        # OS, ~a few GB). The user-visible storage lives on the Data volume, so
+        # measure that when present; fall back to "/" elsewhere.
+        path = "/"
+        if _IS_MAC and os.path.isdir("/System/Volumes/Data"):
+            path = "/System/Volumes/Data"
         try:
-            u = psutil.disk_usage("/")
+            u = psutil.disk_usage(path)
         except Exception:
             return {"available": False}
+        # GiB (1024^3) to match `df -h` (which reports Gi).
+        gib = 1024 ** 3
         return {
             "available": True,
             "percent": u.percent,
-            "used_gb": round(u.used / 1024 ** 3, 1),
-            "total_gb": round(u.total / 1024 ** 3, 1),
-            "free_gb": round(u.free / 1024 ** 3, 1),
+            "used_gb": round(u.used / gib, 1),
+            "total_gb": round(u.total / gib, 1),
+            "free_gb": round(u.free / gib, 1),
         }
     return _cached("disk", 60, produce)
 
@@ -191,42 +206,52 @@ def _local_ip():
             pass
 
 
-def _wifi_ssid(iface):
-    if not (_IS_MAC and iface):
-        return None
-    out = _run(["networksetup", "-getairportnetwork", iface])
-    if not out or "not associated" in out.lower() or ":" not in out:
-        return None
-    ssid = out.split(":", 1)[1].strip()
-    # Recent macOS may redact the SSID when Location access isn't granted.
-    if not ssid or ssid.lower() in ("", "<redacted>"):
-        return None
-    return ssid
-
+# The Wi-Fi SSID is deliberately not reported. On recent macOS it needs
+# Location access and is often redacted or empty, which made the card read a
+# confusing "Unavailable"; it's also private. The card shows connection status
+# (derived from having a routable local IP) and the local IP instead.
 
 def _network_addr():
     def produce():
-        return {
-            "local_ip": _local_ip(),
-            "wifi_ssid": _wifi_ssid(_system_info().get("wifi_iface")),
-        }
+        return {"local_ip": _local_ip()}
     return _cached("net_addr", 45, produce, lock=True)
+
+
+def _speed_bytes():
+    """Total (bytes_sent, bytes_recv) for the interface we measure: the active
+    Wi-Fi NIC when it's up, otherwise the sum of active non-loopback NICs.
+    Loopback and down interfaces are excluded so idle/local traffic doesn't
+    inflate the rate."""
+    per = psutil.net_io_counters(pernic=True)
+    stats = psutil.net_if_stats()
+    wifi = _system_info().get("wifi_iface")
+    if wifi and wifi in per and wifi in stats and stats[wifi].isup:
+        c = per[wifi]
+        return c.bytes_sent, c.bytes_recv
+    sent = recv = 0
+    for name, c in per.items():
+        st = stats.get(name)
+        if name.lower().startswith("lo") or (st and not st.isup):
+            continue
+        sent += c.bytes_sent
+        recv += c.bytes_recv
+    return sent, recv
 
 
 def _network_speed():
     try:
-        c = psutil.net_io_counters()
+        sent, recv = _speed_bytes()
     except Exception:
         return {"up_bps": 0.0, "down_bps": 0.0}
     now = time.time()
     up = down = 0.0
     with _net_lock:
         if _net_prev["ts"]:
-            dt = now - _net_prev["ts"]
+            dt = now - _net_prev["ts"]   # real elapsed time between samples
             if dt > 0:
-                up = max(0.0, (c.bytes_sent - _net_prev["sent"]) / dt)
-                down = max(0.0, (c.bytes_recv - _net_prev["recv"]) / dt)
-        _net_prev.update(ts=now, sent=c.bytes_sent, recv=c.bytes_recv)
+                up = max(0.0, (sent - _net_prev["sent"]) / dt)
+                down = max(0.0, (recv - _net_prev["recv"]) / dt)
+        _net_prev.update(ts=now, sent=sent, recv=recv)
     return {"up_bps": up, "down_bps": down}
 
 
@@ -295,7 +320,7 @@ def get_mac_stats() -> dict:
         "disk": _disk(),
         "network": {
             "local_ip": addr["local_ip"],
-            "wifi_ssid": addr["wifi_ssid"],
+            "connected": bool(addr["local_ip"]),
             **_network_speed(),
         },
         "processes": _processes(),
