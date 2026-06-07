@@ -2,7 +2,7 @@
 
 **This application is local-first software and is NOT hardened for public internet exposure.**
 
-The "Desk Companion" is designed to be run on a trusted local network (like your home Wi-Fi) to serve a dashboard to a single tablet.
+FireFrame is designed to be run on a trusted local network (like your home Wi-Fi) to serve a dashboard to a single tablet.
 
 ## Core Security Tenets
 

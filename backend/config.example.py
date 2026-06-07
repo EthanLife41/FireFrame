@@ -8,6 +8,27 @@ load_dotenv()
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 8765))
 
+# --- Calendar (macOS-first) ---
+# CALENDAR_SOURCE: none | demo | ics | apple
+#   none  - nothing configured (UI shows "not connected")
+#   demo  - built-in placeholder events
+#   ics   - parse a local .ics file at CALENDAR_ICS_PATH
+#   apple - read Apple Calendar via osascript/JXA (needs Automation permission)
+CALENDAR_SOURCE = os.getenv("CALENDAR_SOURCE", "none")
+# Local path to an .ics file when CALENDAR_SOURCE=ics. Keep this out of the repo.
+CALENDAR_ICS_PATH = os.getenv("CALENDAR_ICS_PATH", "")
+CALENDAR_UPCOMING_DAYS = int(os.getenv("CALENDAR_UPCOMING_DAYS", "7"))
+
+# --- Photos ---
+# Optional: keep your pictures outside the repo by setting PHOTOS_DIR.
+PHOTOS_DIR_OVERRIDE = os.getenv("PHOTOS_DIR", "")
+PHOTO_INTERVAL_SECONDS = int(os.getenv("PHOTO_INTERVAL_SECONDS", "30"))
+
+# --- Bluetooth ---
+# Connect/disconnect needs the optional 'blueutil' tool. Set to 0 to disable
+# those actions entirely (listing/status still work).
+BLUETOOTH_ALLOW_CONNECT = os.getenv("BLUETOOTH_ALLOW_CONNECT", "1") not in ("0", "false", "False", "")
+
 # Security Settings
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "change-me")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "change-this-random-string")

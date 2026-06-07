@@ -5,7 +5,7 @@ cd "$DIR/.."
 
 if [ -f .server.pid ]; then
     PID=$(cat .server.pid)
-    echo "Stopping Desk Companion server (PID: $PID)..."
+    echo "Stopping FireFrame server (PID: $PID)..."
     kill $PID
     rm -f .server.pid
     echo "Stopped."

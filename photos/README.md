@@ -1,7 +1,7 @@
 # Photos Directory
 
 Place your `.jpg`, `.jpeg`, `.png`, `.gif`, or `.webp` files here.
-The Desk Companion backend will automatically serve them to the dashboard's Photos tab.
+The FireFrame backend will automatically serve them to the dashboard's Photos tab.
 
 ## Note on Privacy
 - Do not commit your personal photos to Git. The `.gitignore` is configured to ignore all image files in this directory.

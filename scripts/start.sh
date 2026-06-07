@@ -27,7 +27,7 @@ if [ -n "$EXISTING" ]; then
     sleep 0.5
 fi
 
-echo "Starting Desk Companion on $HOST:$PORT ..."
+echo "Starting FireFrame on $HOST:$PORT ..."
 echo "Press Ctrl+C to stop."
 
 # Save PID for stop.sh, then wait so Ctrl+C kills it cleanly

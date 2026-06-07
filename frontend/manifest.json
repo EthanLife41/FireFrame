@@ -1,18 +1,10 @@
 {
-  "name": "Desk Companion",
-  "short_name": "Desk",
-  "description": "Local Mac control panel for Fire tablet",
+  "name": "FireFrame",
+  "short_name": "FireFrame",
+  "description": "Local control panel for a Fire tablet",
   "start_url": "/",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
-  "icons": [
-    {
-      "src": "/static/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+  "background_color": "#0b0c11",
+  "theme_color": "#0b0c11"
 }

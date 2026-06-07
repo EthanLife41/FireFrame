@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0b0c11">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Desk Companion</title>
+    <title>FireFrame</title>
     <link rel="manifest" href="/static/manifest.json">
     <link rel="stylesheet" href="/static/style.css?v={{CSS_VERSION}}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -20,7 +20,7 @@
         <div class="login-card">
             <div class="login-header">
                 <span class="login-icon">🖥️</span>
-                <h1>Desk Companion</h1>
+                <h1>FireFrame</h1>
                 <p class="login-hint">Using Fully Kiosk? PIN mode avoids needing the tablet keyboard.</p>
             </div>
 
@@ -146,10 +146,46 @@
             </div>
         </div>
 
+        <!-- BLUETOOTH TAB -->
+        <div id="tab-bluetooth" class="tab-content">
+            <div class="settings-scroll">
+                <div class="card bt-card">
+                    <div class="bt-card-head">
+                        <div>
+                            <div class="card-label">Bluetooth</div>
+                            <div id="bt-state-text" class="bt-state-text">Checking…</div>
+                        </div>
+                        <div class="bt-head-right">
+                            <span id="bt-power-pill" class="pill-badge">—</span>
+                            <button class="btn small-btn" id="bt-refresh-btn">⟳ Rescan</button>
+                        </div>
+                    </div>
+                    <p id="bt-note" class="muted-text bt-note hidden"></p>
+                    <div id="bt-loading" class="bt-state">Scanning…</div>
+                    <div id="bt-empty" class="bt-state hidden">No devices found.</div>
+                    <div id="bt-device-list" class="bt-device-list"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- CALENDAR TAB -->
         <div id="tab-calendar" class="tab-content">
-            <div class="cal-header">Today's Agenda</div>
-            <div id="calendar-list" class="agenda-list"></div>
+            <div class="settings-scroll">
+                <div class="card cal-card">
+                    <div class="cal-card-head">
+                        <div>
+                            <div class="card-label">Today &amp; Upcoming</div>
+                            <div id="cal-source" class="bt-state-text"></div>
+                        </div>
+                        <button class="btn small-btn" id="cal-refresh-btn">⟳ Refresh</button>
+                    </div>
+                    <div id="cal-loading" class="cal-state">Loading calendar…</div>
+                    <div id="cal-empty" class="cal-state hidden">No events today.</div>
+                    <div id="cal-disconnected" class="cal-state hidden">Calendar not connected. See the README to enable it.</div>
+                    <div id="cal-error" class="cal-state hidden">Unable to load the calendar.</div>
+                    <div id="calendar-list" class="agenda-list"></div>
+                </div>
+            </div>
         </div>
 
         <!-- PHOTOS TAB -->
@@ -158,12 +194,33 @@
                 <img id="current-photo" src="" alt="" class="photo-img hidden">
                 <div id="no-photos-msg" class="no-photos hidden">
                     <span>📷</span>
-                    <p>No photos found in /photos.<br>Drop images into the photos/ folder and refresh.</p>
+                    <p>No photos found.<br>Add images to the photos/ folder (or your PHOTOS_DIR) and rescan.</p>
+                </div>
+                <div id="photo-error-msg" class="no-photos hidden">
+                    <span>⚠️</span>
+                    <p>Couldn't load this image. Skipping…</p>
                 </div>
             </div>
-            <div class="photo-hud">
-                <span id="photo-clock" class="photo-clock">00:00</span>
-                <button class="btn small-btn" onclick="switchTab('buttons')">← Back</button>
+
+            <!-- State badges (top-left) -->
+            <div class="photo-badges">
+                <span id="badge-shuffle" class="photo-badge hidden">🔀 Shuffle</span>
+                <span id="badge-paused" class="photo-badge hidden">⏸ Paused</span>
+                <span id="badge-locked" class="photo-badge hidden">🔒 Locked</span>
+            </div>
+
+            <!-- Clock (top-right) -->
+            <span id="photo-clock" class="photo-clock">00:00</span>
+
+            <!-- Touch control bar (bottom) -->
+            <div class="photo-controls">
+                <button class="btn small-btn" id="ph-prev" aria-label="Previous photo">‹</button>
+                <button class="btn small-btn" id="ph-playpause">⏸ Pause</button>
+                <button class="btn small-btn" id="ph-next" aria-label="Next photo">›</button>
+                <button class="btn small-btn" id="ph-random">🎲 Random</button>
+                <button class="btn small-btn" id="ph-shuffle">🔀 Shuffle</button>
+                <button class="btn small-btn" id="ph-lock">🔒 Lock</button>
+                <span id="photo-counter" class="photo-counter">0 / 0</span>
             </div>
         </div>
 
@@ -211,6 +268,7 @@
     <nav class="bottom-nav">
         <button class="nav-btn active" data-tab="home"><span class="nav-icon">🏠</span><span>Home</span></button>
         <button class="nav-btn" data-tab="buttons"><span class="nav-icon">🎛️</span><span>Buttons</span></button>
+        <button class="nav-btn" data-tab="bluetooth"><span class="nav-icon">🔵</span><span>Bluetooth</span></button>
         <button class="nav-btn" data-tab="calendar"><span class="nav-icon">📅</span><span>Calendar</span></button>
         <button class="nav-btn" data-tab="photos"><span class="nav-icon">🖼️</span><span>Photos</span></button>
         <button class="nav-btn" data-tab="settings"><span class="nav-icon">⚙️</span><span>Settings</span></button>
@@ -254,7 +312,7 @@
 <!-- Toast -->
 <div id="toast" class="toast hidden"></div>
 
-<div class="version-indicator" id="version-indicator">App Version: Beta 1.1</div>
+<div class="version-indicator" id="version-indicator">FireFrame {{VERSION}}</div>
 
 <script src="/static/app.js?v={{JS_VERSION}}"></script>
 </body>

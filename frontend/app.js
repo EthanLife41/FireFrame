@@ -1,5 +1,5 @@
 // ============================================================
-// Desk Companion — app.js
+// FireFrame — app.js
 // Target: Fire HD 8, landscape, Fully Kiosk Browser
 // ============================================================
 
@@ -18,6 +18,7 @@ window.addEventListener('error', (event) => {
 // --- State ---
 let isLoggedIn    = false;
 let statsInterval = null;
+let calendarCountdownInterval = null;
 let pinBuffer     = '';
 const MAX_PIN_LEN = 4;
 
@@ -49,6 +50,9 @@ function init() {
     setupKeyboardFallback();
     setupFullscreen();
     setupReloadButtons();
+    setupBluetooth();
+    setupCalendar();
+    setupPhotos();
 }
 
 // ============================================================
@@ -139,7 +143,7 @@ function showMainApp() {
     loginScreen.classList.add('hidden');
     mainScreen.classList.add('active');
     mainScreen.classList.remove('hidden');
-    fetchCalendar();
+    loadCalendar();
     fetchServerStatus();
     startStatsPolling();
 }
@@ -328,7 +332,8 @@ function switchTab(tabId) {
     const activeTabEl = document.getElementById(`tab-${tabId}`);
     if (activeTabEl) activeTabEl.classList.add('active');
 
-    tabId === 'photos' ? startPhotoRotation() : stopPhotoRotation();
+    if (tabId === 'photos') { startPhotoShow(); } else { stopPhotoShow(); }
+    if (tabId === 'bluetooth') { loadBluetooth(); }
 }
 window.switchTab = switchTab; // used by inline onclick
 
@@ -439,11 +444,18 @@ async function fetchBluetoothStatus() {
     if (!isLoggedIn) return;
     try {
         const res = await fetch('/api/bluetooth/status');
-        if (res.ok) {
-            const d = await res.json();
-            setText('home-bt-status', d.bluetooth_state || 'Unknown');
-        }
+        if (!res.ok) return;
+        const d = await res.json();
+        setText('home-bt-status', formatBtStatus(d));
     } catch { /* ignore */ }
+}
+
+function formatBtStatus(d) {
+    if (!d.available) return 'Unavailable';
+    if (d.powered === false) return 'Off';
+    const n = d.connected_count || 0;
+    if (d.powered === true) return n ? `On · ${n} connected` : 'On';
+    return n ? `${n} connected` : 'Unknown';
 }
 
 async function fetchServerStatus() {
@@ -459,63 +471,242 @@ async function fetchServerStatus() {
     setText('server-url', window.location.href);
 }
 
-async function fetchCalendar() {
+function setupCalendar() {
+    const btn = document.getElementById('cal-refresh-btn');
+    if (btn) btn.addEventListener('click', () => loadCalendar(true));
+}
+
+function showCalState(id) {
+    ['cal-loading', 'cal-empty', 'cal-disconnected', 'cal-error'].forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.classList.toggle('hidden', s !== id);
+    });
+}
+
+async function loadCalendar(forceRefresh = false) {
+    showCalState('cal-loading');
     try {
-        const res = await fetch('/api/calendar');
-        if (!res.ok) return;
-        const d   = await res.json();
-        const list = document.getElementById('calendar-list');
-        list.innerHTML = '';
-
-        if (!d.events || !d.events.length) {
-            list.innerHTML = '<p style="color:var(--muted);font-size:0.8rem;">No events today.</p>';
-            setText('next-event', '—');
-            return;
-        }
-
-        d.events.forEach(ev => {
-            const s = fmtTime(ev.start), e = fmtTime(ev.end);
-            const item = document.createElement('div');
-            item.className = 'agenda-item';
-
-            // textContent (not innerHTML) so event titles/locations can't inject markup.
-            const title = document.createElement('div');
-            title.className = 'ev-title';
-            title.textContent = ev.title || '';
-
-            const timeEl = document.createElement('div');
-            timeEl.className = 'ev-time';
-            timeEl.textContent = `${s} – ${e}`;
-
-            item.appendChild(title);
-            item.appendChild(timeEl);
-
-            if (ev.location) {
-                const loc = document.createElement('div');
-                loc.className = 'ev-loc';
-                loc.textContent = `📍 ${ev.location}`;
-                item.appendChild(loc);
-            }
-
-            list.appendChild(item);
-        });
-
-        setText('next-event', d.events[0].title);
-        const nextStart = new Date(d.events[0].start);
-        const tickCountdown = () => {
-            const diff = nextStart - new Date();
-            if (diff > 0) {
-                const h = Math.floor(diff / 3600000);
-                const m = Math.floor((diff % 3600000) / 60000);
-                setText('event-countdown', 'In ' + (h > 0 ? h + 'h ' : '') + m + 'm');
-            } else {
-                setText('event-countdown', 'Now');
-            }
-        };
-        tickCountdown();
-        setInterval(tickCountdown, 60000);
+        // /refresh clears the server cache and returns the same upcoming payload.
+        const d = forceRefresh
+            ? await (await fetch('/api/calendar/refresh', { method: 'POST' })).json()
+            : await (await fetch('/api/calendar/upcoming')).json();
+        renderCalendar(d);
     } catch {
+        showCalState('cal-error');
         setText('next-event', 'Failed to load');
+        setText('event-countdown', '');
+    }
+}
+
+function renderCalendar(d) {
+    const list = document.getElementById('calendar-list');
+    list.innerHTML = '';
+    setText('cal-source', d.source && d.source !== 'none' ? `Source: ${d.source}` : '');
+
+    if (!d.connected) {
+        showCalState('cal-disconnected');
+        const dc = document.getElementById('cal-disconnected');
+        if (dc && d.message) dc.textContent = d.message;
+        setText('next-event', 'Not connected');
+        setText('event-countdown', '');
+        return;
+    }
+
+    if (!d.events || !d.events.length) {
+        showCalState('cal-empty');
+        setText('next-event', '—');
+        setText('event-countdown', '');
+        return;
+    }
+
+    showCalState(null); // hide all state messages; show the list
+    d.events.forEach(ev => {
+        const s = fmtTime(ev.start), e = fmtTime(ev.end);
+        const item = document.createElement('div');
+        item.className = 'agenda-item';
+
+        // textContent (not innerHTML) so event titles/locations can't inject markup.
+        const title = document.createElement('div');
+        title.className = 'ev-title';
+        title.textContent = ev.title || '';
+
+        const timeEl = document.createElement('div');
+        timeEl.className = 'ev-time';
+        timeEl.textContent = `${s} – ${e}`;
+
+        item.appendChild(title);
+        item.appendChild(timeEl);
+
+        if (ev.location) {
+            const loc = document.createElement('div');
+            loc.className = 'ev-loc';
+            loc.textContent = `📍 ${ev.location}`;
+            item.appendChild(loc);
+        }
+        list.appendChild(item);
+    });
+
+    // Home tab: next event + live countdown.
+    setText('next-event', d.events[0].title);
+    const nextStart = new Date(d.events[0].start);
+    const tickCountdown = () => {
+        const diff = nextStart - new Date();
+        if (diff > 0) {
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            setText('event-countdown', 'In ' + (h > 0 ? h + 'h ' : '') + m + 'm');
+        } else {
+            setText('event-countdown', 'Now');
+        }
+    };
+    tickCountdown();
+    clearInterval(calendarCountdownInterval);   // don't stack intervals on refresh
+    calendarCountdownInterval = setInterval(tickCountdown, 60000);
+}
+
+// ============================================================
+// BLUETOOTH SELECTOR (macOS)
+// ============================================================
+function setupBluetooth() {
+    const btn = document.getElementById('bt-refresh-btn');
+    if (btn) btn.addEventListener('click', () => loadBluetooth(true));
+
+    // Event delegation for connect/disconnect buttons in the device list.
+    const list = document.getElementById('bt-device-list');
+    if (list) {
+        list.addEventListener('click', e => {
+            const action = e.target.closest('button[data-bt-action]');
+            if (!action) return;
+            const id = action.getAttribute('data-bt-id');
+            const want = action.getAttribute('data-bt-action'); // connect | disconnect
+            btAction(want, id, action);
+        });
+    }
+}
+
+function btShowOnly(visibleId) {
+    ['bt-loading', 'bt-empty'].forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.classList.toggle('hidden', s !== visibleId);
+    });
+}
+
+async function loadBluetooth(force = false) {
+    btShowOnly('bt-loading');
+    setText('bt-state-text', 'Scanning…');
+    try {
+        const url = force ? '/api/bluetooth/refresh' : '/api/bluetooth/devices';
+        const res = await fetch(url, { method: force ? 'POST' : 'GET' });
+        const d = await res.json();
+        renderBluetooth(d);
+    } catch {
+        btShowOnly(null);
+        setText('bt-state-text', 'Error scanning');
+        setBtNote('Could not reach the server.');
+    }
+}
+
+function setBtNote(msg) {
+    const note = document.getElementById('bt-note');
+    if (!note) return;
+    if (msg) { note.textContent = msg; note.classList.remove('hidden'); }
+    else { note.classList.add('hidden'); }
+}
+
+function renderBluetooth(d) {
+    const list = document.getElementById('bt-device-list');
+    const pill = document.getElementById('bt-power-pill');
+    list.innerHTML = '';
+
+    // Power/availability pill
+    let pillText = '—', pillClass = '';
+    if (!d.available) { pillText = 'Unavailable'; }
+    else if (d.powered === false) { pillText = 'Off'; }
+    else if (d.powered === true) { pillText = 'On'; pillClass = 'on'; }
+    else { pillText = 'Unknown'; }
+    pill.textContent = pillText;
+    pill.className = 'pill-badge ' + pillClass;
+
+    if (!d.available) {
+        btShowOnly(null);
+        setText('bt-state-text', d.message || 'Bluetooth unavailable on this platform.');
+        setBtNote(null);
+        return;
+    }
+
+    setText('bt-state-text', d.connect_supported
+        ? 'Tap a device to connect or disconnect.'
+        : 'Listing devices (read-only).');
+    setBtNote(d.connect_supported ? null : d.note);
+
+    const devices = d.devices || [];
+    if (!devices.length) { btShowOnly('bt-empty'); return; }
+    btShowOnly(null);
+
+    devices.forEach(dev => {
+        const row = document.createElement('div');
+        row.className = 'bt-row';
+
+        const icon = document.createElement('div');
+        icon.className = 'bt-row-icon';
+        icon.textContent = btIconFor(dev.type);
+
+        const main = document.createElement('div');
+        main.className = 'bt-row-main';
+        const name = document.createElement('div');
+        name.className = 'bt-row-name';
+        name.textContent = dev.name || 'Unknown device';
+        const sub = document.createElement('div');
+        sub.className = 'bt-row-sub' + (dev.connected ? ' connected' : '');
+        sub.textContent = dev.connected ? 'Connected' : 'Not connected';
+        main.appendChild(name);
+        main.appendChild(sub);
+
+        row.appendChild(icon);
+        row.appendChild(main);
+
+        if (d.connect_supported && dev.actionable) {
+            const act = document.createElement('button');
+            act.className = 'btn small-btn' + (dev.connected ? ' danger-btn' : ' primary-btn');
+            act.textContent = dev.connected ? 'Disconnect' : 'Connect';
+            act.setAttribute('data-bt-action', dev.connected ? 'disconnect' : 'connect');
+            act.setAttribute('data-bt-id', dev.id);
+            row.appendChild(act);
+        }
+        list.appendChild(row);
+    });
+}
+
+function btIconFor(type) {
+    const t = (type || '').toLowerCase();
+    if (t.includes('headphone') || t.includes('headset') || t.includes('audio')) return '🎧';
+    if (t.includes('speaker')) return '🔊';
+    if (t.includes('keyboard')) return '⌨️';
+    if (t.includes('mouse') || t.includes('trackpad')) return '🖱️';
+    if (t.includes('phone')) return '📱';
+    return '🔵';
+}
+
+async function btAction(want, id, btnEl) {
+    if (!id) return;
+    btnEl.disabled = true;
+    const original = btnEl.textContent;
+    btnEl.textContent = want === 'connect' ? 'Connecting…' : 'Disconnecting…';
+    try {
+        const res = await fetch('/api/bluetooth/' + want, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        const data = await res.json();
+        showToast(data.success ? (data.message || 'Done.') : `Error: ${data.message}`, !data.success);
+    } catch {
+        showToast('Connection error.', true);
+    } finally {
+        btnEl.textContent = original;
+        btnEl.disabled = false;
+        // Give the radio a moment, then refresh the list to reflect new state.
+        setTimeout(() => loadBluetooth(true), 1200);
     }
 }
 
@@ -622,41 +813,196 @@ function setupTimer() {
 }
 
 // ============================================================
-// PHOTO ROTATION
+// PHOTOS — gallery / slideshow with shuffle, pause, lock
+// State persists across reloads via localStorage.
 // ============================================================
-let photoList = [], photoIdx = 0, photoTimer = null;
+const PH_KEYS = { shuffle: 'ff_photo_shuffle', paused: 'ff_photo_paused', locked: 'ff_photo_locked' };
 
-async function startPhotoRotation() {
-    if (photoTimer) return;
-    try {
-        const res = await fetch('/api/photos');
-        if (res.ok) photoList = (await res.json()).photos || [];
-    } catch { photoList = []; }
+let photoFiles = [];        // all filenames from the server
+let photoOrder = [];        // working order (sequential or shuffled)
+let photoPos = 0;           // index into photoOrder
+let photoTimer = null;
+let photoIntervalMs = 30000;
+let photosLoaded = false;
+let photoShuffle = false;
+let photoPaused = false;
+let photoLockedName = null;
+let photoErrorStreak = 0;
 
-    const img = document.getElementById('current-photo');
-    const msg = document.getElementById('no-photos-msg');
+function setupPhotos() {
+    photoShuffle    = localStorage.getItem(PH_KEYS.shuffle) === '1';
+    photoPaused     = localStorage.getItem(PH_KEYS.paused) === '1';
+    photoLockedName = localStorage.getItem(PH_KEYS.locked) || null;
 
-    if (!photoList.length) {
-        img.classList.add('hidden');
-        msg.classList.remove('hidden');
-        return;
-    }
-
-    msg.classList.add('hidden');
-
-    const show = () => {
-        img.style.opacity = '0';
-        img.src = `/photos/${photoList[photoIdx]}`;
-        img.onload = () => { img.classList.remove('hidden'); img.style.opacity = '1'; };
-        photoIdx = (photoIdx + 1) % photoList.length;
-    };
-
-    img.style.transition = 'opacity 0.8s ease';
-    show();
-    photoTimer = setInterval(show, 30000);
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+    on('ph-prev',      () => stepPhoto(-1));
+    on('ph-next',      () => stepPhoto(1));
+    on('ph-random',    randomPhoto);
+    on('ph-playpause', togglePause);
+    on('ph-shuffle',   toggleShuffle);
+    on('ph-lock',      toggleLock);
 }
 
-function stopPhotoRotation() {
+async function loadPhotos() {
+    try {
+        const res = await fetch('/api/photos');
+        if (res.ok) {
+            const d = await res.json();
+            photoFiles = d.photos || [];
+            if (d.interval_seconds) photoIntervalMs = Math.max(3, d.interval_seconds) * 1000;
+        }
+    } catch { photoFiles = []; }
+    photosLoaded = true;
+
+    buildOrder(photoLockedName);
+    if (photoLockedName) {
+        const i = photoOrder.indexOf(photoLockedName);
+        if (i >= 0) photoPos = i; else clearLock();   // locked photo no longer present
+    }
+    renderCurrent();
+    updatePhotoUi();
+}
+
+function buildOrder(keepName) {
+    photoOrder = photoShuffle ? shuffleArray(photoFiles.slice()) : photoFiles.slice();
+    if (keepName) {
+        const i = photoOrder.indexOf(keepName);
+        photoPos = i >= 0 ? i : 0;
+    } else if (photoPos >= photoOrder.length) {
+        photoPos = 0;
+    }
+}
+
+function shuffleArray(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function startPhotoShow() {
+    // Re-fetch if never loaded, or if it was empty last time (so "add photos
+    // then come back" works without a full reload).
+    if (!photosLoaded || !photoFiles.length) { loadPhotos().then(restartPhotoTimer); }
+    else { restartPhotoTimer(); }
+}
+
+function stopPhotoShow() {
     clearInterval(photoTimer);
     photoTimer = null;
+}
+
+// Auto-advance only when not paused and not locked on a photo.
+function restartPhotoTimer() {
+    clearInterval(photoTimer);
+    photoTimer = null;
+    if (!photoPaused && !photoLockedName && photoOrder.length > 1) {
+        photoTimer = setInterval(() => stepPhoto(1, true), photoIntervalMs);
+    }
+}
+
+function stepPhoto(dir, isAuto = false) {
+    if (!photoOrder.length) return;
+    // Manual prev/next means the user is leaving the locked photo → release the lock.
+    if (photoLockedName && !isAuto) clearLock();
+    photoPos = (photoPos + dir + photoOrder.length) % photoOrder.length;
+    renderCurrent();
+    updatePhotoUi();
+    if (!isAuto) restartPhotoTimer();
+}
+
+async function randomPhoto() {
+    if (!photoOrder.length) return;
+    if (photoLockedName) clearLock();
+    let name = null;
+    try {
+        const res = await fetch('/api/photos/random');
+        if (res.ok) name = (await res.json()).photo;
+    } catch { /* fall back to client-side random below */ }
+    const i = name ? photoOrder.indexOf(name) : -1;
+    photoPos = i >= 0 ? i : Math.floor(Math.random() * photoOrder.length);
+    renderCurrent();
+    updatePhotoUi();
+    restartPhotoTimer();
+}
+
+function togglePause() {
+    photoPaused = !photoPaused;
+    localStorage.setItem(PH_KEYS.paused, photoPaused ? '1' : '0');
+    restartPhotoTimer();
+    updatePhotoUi();
+}
+
+function toggleShuffle() {
+    photoShuffle = !photoShuffle;
+    localStorage.setItem(PH_KEYS.shuffle, photoShuffle ? '1' : '0');
+    buildOrder(photoOrder[photoPos]);   // keep the current photo on screen
+    restartPhotoTimer();
+    updatePhotoUi();
+}
+
+function toggleLock() {
+    if (photoLockedName) {
+        clearLock();
+    } else {
+        photoLockedName = photoOrder[photoPos] || null;
+        if (photoLockedName) localStorage.setItem(PH_KEYS.locked, photoLockedName);
+    }
+    restartPhotoTimer();
+    updatePhotoUi();
+}
+
+function clearLock() {
+    photoLockedName = null;
+    localStorage.removeItem(PH_KEYS.locked);
+}
+
+function renderCurrent() {
+    const img    = document.getElementById('current-photo');
+    const noMsg  = document.getElementById('no-photos-msg');
+    const errMsg = document.getElementById('photo-error-msg');
+    if (!img) return;
+
+    if (!photoOrder.length) {
+        img.classList.add('hidden');
+        errMsg.classList.add('hidden');
+        noMsg.classList.remove('hidden');
+        return;
+    }
+    noMsg.classList.add('hidden');
+    errMsg.classList.add('hidden');
+
+    const name = photoOrder[photoPos];
+    img.style.transition = 'opacity 0.6s ease';
+    img.style.opacity = '0';
+    img.onload = () => { img.classList.remove('hidden'); img.style.opacity = '1'; photoErrorStreak = 0; };
+    img.onerror = () => {
+        img.classList.add('hidden');
+        errMsg.classList.remove('hidden');
+        photoErrorStreak++;
+        // Skip a broken image, but stop if everything is failing or we're locked.
+        if (photoErrorStreak < photoOrder.length && !photoLockedName) {
+            setTimeout(() => stepPhoto(1, true), 1500);
+        }
+    };
+    // encodeURIComponent so names with spaces or "?" resolve correctly.
+    img.src = `/photos/${encodeURIComponent(name)}`;
+}
+
+function updatePhotoUi() {
+    const badge = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+    badge('badge-shuffle', photoShuffle);
+    badge('badge-paused',  photoPaused);
+    badge('badge-locked',  !!photoLockedName);
+
+    const pp = document.getElementById('ph-playpause');
+    if (pp) pp.textContent = photoPaused ? '▶ Resume' : '⏸ Pause';
+    const sh = document.getElementById('ph-shuffle');
+    if (sh) sh.classList.toggle('active', photoShuffle);
+    const lk = document.getElementById('ph-lock');
+    if (lk) { lk.textContent = photoLockedName ? '🔓 Unlock' : '🔒 Lock'; lk.classList.toggle('active', !!photoLockedName); }
+
+    const counter = document.getElementById('photo-counter');
+    if (counter) counter.textContent = photoOrder.length ? `${photoPos + 1} / ${photoOrder.length}` : '0 / 0';
 }

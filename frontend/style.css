@@ -1,5 +1,5 @@
 /* ===================================================
-   Desk Companion — dark UI
+   FireFrame — dark UI
    Target: Fire HD 8, landscape, Fully Kiosk Browser
    Design language: iOS / iPadOS dark mode (glass panels,
    hairline borders, soft shadows, pill controls).
@@ -796,4 +796,134 @@ html, body {
         animation-duration: 0.001ms !important;
         transition-duration: 0.001ms !important;
     }
+}
+
+/* ===================================================
+   SHARED — pills, card heads, state messages
+   =================================================== */
+.pill-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.22rem 0.65rem;
+    border-radius: var(--pill);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    white-space: nowrap;
+}
+.pill-badge.on {
+    background: rgba(48, 209, 88, 0.16);
+    border-color: rgba(48, 209, 88, 0.40);
+    color: var(--green);
+}
+
+.bt-card-head, .cal-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+}
+.bt-head-right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.bt-state-text { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+.bt-note { margin: 0.1rem 0 0.6rem; }
+.bt-state, .cal-state { color: var(--muted); font-size: 0.88rem; padding: 0.9rem 0.2rem; text-align: center; }
+
+/* ===================================================
+   BLUETOOTH SELECTOR
+   =================================================== */
+.bt-device-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.bt-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.7rem 0.9rem;
+    box-shadow: var(--glass-edge);
+}
+.bt-row-icon { font-size: 1.5rem; width: 2rem; text-align: center; flex-shrink: 0; }
+.bt-row-main { flex: 1; min-width: 0; }
+.bt-row-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bt-row-sub { font-size: 0.78rem; color: var(--muted); }
+.bt-row-sub.connected { color: var(--green); }
+.bt-row .btn { flex-shrink: 0; min-width: 124px; }
+
+/* ===================================================
+   PHOTOS — badges + control bar
+   =================================================== */
+.photo-badges {
+    position: absolute;
+    top: 0.9rem;
+    left: 0.9rem;
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    z-index: 5;
+}
+.photo-badge {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--pill);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+#badge-locked { background: rgba(255, 159, 10, 0.30); border-color: rgba(255, 159, 10, 0.5); }
+#badge-paused { background: rgba(255, 69, 58, 0.30);  border-color: rgba(255, 69, 58, 0.5); }
+
+/* Clock sits top-right in the photo tab (no longer in a HUD row) */
+.photo-tab .photo-clock { position: absolute; top: 0.9rem; right: 0.9rem; z-index: 5; }
+
+.photo-controls {
+    position: absolute;
+    left: 50%;
+    bottom: 0.9rem;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: calc(100% - 1.4rem);
+    background: rgba(0, 0, 0, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius-lg);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    z-index: 6;
+}
+.photo-controls .btn { min-height: 44px; }
+.photo-counter {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-variant-numeric: tabular-nums;
+    padding: 0 0.3rem;
+}
+
+/* Toggle-on look for shuffle / lock pills */
+.small-btn.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: transparent;
+}
+
+/* ===================================================
+   BOTTOM NAV — keep 6 items legible on the Fire HD 8
+   =================================================== */
+.nav-btn span:last-child { white-space: nowrap; }
+@media (max-width: 720px) {
+    .nav-btn { font-size: 0.66rem; }
+    .nav-btn .nav-icon { font-size: 1.3rem; }
 }

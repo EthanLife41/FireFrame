@@ -7,7 +7,11 @@ __pycache__/
 *.pyc
 .DS_Store
 logs/
+*.log
 .server.pid
+
+# Local calendar exports — never commit private calendar data
+*.ics
 
 # Ignore everything in photos/ except the README (no personal images in git)
 photos/*

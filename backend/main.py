@@ -10,15 +10,23 @@ from collections import defaultdict
 from backend.auth import create_session_token, get_current_user, SESSION_MAX_AGE_SECONDS
 from backend.config_loader import DASHBOARD_PASSWORD
 from backend.actions import handle_action
-from backend.bluetooth import handle_bluetooth_action, get_bluetooth_status
+from backend.bluetooth import (
+    handle_bluetooth_action,
+    get_bluetooth_status,
+    get_bluetooth_devices,
+    connect_device,
+    disconnect_device,
+)
 from backend.stats import get_mac_stats
-from backend.photos import get_local_photos, PHOTOS_DIR
-from backend.calendar_stub import get_placeholder_events
+from backend.photos import get_photos_payload, get_random_photo, PHOTOS_DIR
+from backend.calendar_service import get_today, get_upcoming, refresh_calendar
 
-app = FastAPI(title="Desk Companion API")
+app = FastAPI(title="FireFrame API")
 
 # Mount frontend and photos static files
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+# Ensure the photos folder exists so a custom PHOTOS_DIR never crashes startup.
+os.makedirs(PHOTOS_DIR, exist_ok=True)
 app.mount("/photos", StaticFiles(directory=PHOTOS_DIR), name="photos")
 app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
@@ -64,6 +72,9 @@ class LoginRequest(BaseModel):
 class ActionRequest(BaseModel):
     action: str
     params: dict = {}
+
+class DeviceRequest(BaseModel):
+    id: str
 
 # --- Routes ---
 
@@ -151,14 +162,47 @@ async def perform_action(req: ActionRequest, user: bool = Depends(get_current_us
 async def bluetooth_status(user: bool = Depends(get_current_user)):
     return get_bluetooth_status()
 
+@app.get("/api/bluetooth/devices")
+async def bluetooth_devices(user: bool = Depends(get_current_user)):
+    return get_bluetooth_devices()
+
+@app.post("/api/bluetooth/refresh")
+async def bluetooth_refresh(user: bool = Depends(get_current_user)):
+    return get_bluetooth_devices(force=True)
+
+@app.post("/api/bluetooth/connect")
+async def bluetooth_connect(req: DeviceRequest, user: bool = Depends(get_current_user)):
+    return connect_device(req.id)
+
+@app.post("/api/bluetooth/disconnect")
+async def bluetooth_disconnect(req: DeviceRequest, user: bool = Depends(get_current_user)):
+    return disconnect_device(req.id)
+
 @app.get("/api/stats")
 async def mac_stats(user: bool = Depends(get_current_user)):
     return get_mac_stats()
 
+@app.get("/api/calendar/today")
+async def calendar_today(user: bool = Depends(get_current_user)):
+    return get_today()
+
+@app.get("/api/calendar/upcoming")
+async def calendar_upcoming(user: bool = Depends(get_current_user)):
+    return get_upcoming()
+
+@app.post("/api/calendar/refresh")
+async def calendar_refresh(user: bool = Depends(get_current_user)):
+    return refresh_calendar()
+
+# Backwards-compatible alias for the original single calendar route.
 @app.get("/api/calendar")
 async def calendar_events(user: bool = Depends(get_current_user)):
-    return {"events": get_placeholder_events()}
+    return get_upcoming()
 
 @app.get("/api/photos")
 async def list_photos(user: bool = Depends(get_current_user)):
-    return {"photos": get_local_photos()}
+    return get_photos_payload()
+
+@app.get("/api/photos/random")
+async def random_photo(user: bool = Depends(get_current_user)):
+    return {"photo": get_random_photo()}

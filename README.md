@@ -1,4 +1,4 @@
-# Desk Companion
+# FireFrame
 
 A local-first, personal dashboard meant to turn an Amazon Fire HD 8 tablet into a "Stream Deck" controller and desk companion for macOS.
 
@@ -14,10 +14,13 @@ This project is intended for **local-network use only** and should **not** be ex
 ## Features
 
 - **Large Touch Buttons:** Trigger Mac Shortcuts or open specific workflows.
-- **Bluetooth Controls:** Easily connect/disconnect predefined Bluetooth devices like headphones or speakers.
+- **Bluetooth Selector:** A macOS Control-Center-style panel that lists paired/known devices via the built-in `system_profiler`, with optional connect/disconnect when `blueutil` is installed.
 - **Live Mac Stats:** See real-time CPU, RAM, Battery, and Uptime.
-- **Calendar & Photos:** Displays a rotating frame of local photos and a simple daily agenda.
+- **Calendar:** Today + upcoming agenda from a pluggable local source (demo data, a local `.ics` file, or Apple Calendar).
+- **Photos:** Local photo slideshow with shuffle, pause/resume, lock-on-photo, and prev/next/random controls.
 - **Pomodoro Timer:** Built into the frontend for quick access.
+
+> **Runtime target:** FireFrame is designed to run from a **macOS** laptop. The Bluetooth and Calendar features use macOS tools; on other platforms they degrade gracefully (clear "unsupported / not connected" states) so you can still develop the UI.
 
 ## Setup Instructions
 
@@ -54,7 +57,8 @@ This project is intended for **local-network use only** and should **not** be ex
 ```bash
 python3 -m venv .venv
 ./.venv/bin/python -m pip install -r requirements.txt
-./run.sh   # localhost only, auto-reload
+# localhost only, auto-reload:
+./.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8765 --reload
 ```
 
 To reach it from another machine, tunnel instead of exposing the port:
@@ -82,6 +86,8 @@ To add a new safe action:
 
 Manually copy `.jpg`, `.jpeg`, `.png`, `.gif`, or `.webp` files into the `photos/` directory. They will be automatically served by the local backend. See `photos/README.md` for details. Do not commit personal photos to Git.
 
+To keep your pictures outside the repository entirely, set `PHOTOS_DIR` in `.env` to any local folder. The Photos tab supports shuffle, pause/resume, lock-on-photo, and prev/next/random; your shuffle/pause/locked preferences persist in the browser via `localStorage`. The default slideshow interval is `PHOTO_INTERVAL_SECONDS` (30s).
+
 ## macOS Shortcuts Setup
 
 To make the default buttons work, create the following Shortcuts in the macOS Shortcuts app:
@@ -97,10 +103,40 @@ To make the default buttons work, create the following Shortcuts in the macOS Sh
 
 The backend calls these exactly by name using `shortcuts run "Shortcut Name"`.
 
-## Bluetooth & Live Mac Stats
+## macOS Feature Configuration
 
-- **Bluetooth**: Controls are handled via macOS Shortcuts. We do not use arbitrary shell commands or expose real Bluetooth MAC addresses. If you plan to add direct CLI support later (e.g. `blueutil`), do so cautiously without exposing identifiers.
-- **Mac Stats**: Uses `psutil` to fetch CPU, RAM, Battery, and Uptime securely. GPU stats on macOS are limited; we provide a best-effort fallback without installing heavy dependencies. Stats polling does not expose personal data or process lists.
+All feature config is supplied through environment variables (see `.env.example`). Nothing personal is stored in the repo.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CALENDAR_SOURCE` | `none` | `none` \| `demo` \| `ics` \| `apple` |
+| `CALENDAR_ICS_PATH` | _(empty)_ | Local `.ics` path (used when source is `ics`) |
+| `CALENDAR_UPCOMING_DAYS` | `7` | How many days ahead to include |
+| `PHOTOS_DIR` | _(empty → `./photos`)_ | Folder to read photos from |
+| `PHOTO_INTERVAL_SECONDS` | `30` | Slideshow auto-advance interval |
+| `BLUETOOTH_ALLOW_CONNECT` | `1` | Set `0` to disable connect/disconnect |
+
+### Bluetooth (macOS)
+
+- **Listing/status** uses the built-in `system_profiler SPBluetoothDataType` — no Homebrew, no third-party tools, read-only.
+- **Connect/disconnect** is optional and uses [`blueutil`](https://github.com/toy/blueutil) **only if it is installed**: `brew install blueutil`. Without it, the panel still lists devices and shows a clear "connect/disconnect unsupported" note.
+- Real Bluetooth addresses never reach the tablet — the UI only receives opaque per-device tokens, and every address is validated before use. No `shell=True`.
+- On non-macOS machines the panel shows an "unavailable on this platform" state (Linux Bluetooth is intentionally **not** implemented).
+
+### Calendar (macOS)
+
+Pick a source with `CALENDAR_SOURCE`:
+
+- `none` — default; the tab shows "Calendar not connected".
+- `demo` — built-in placeholder events (handy for UI testing).
+- `ics` — point `CALENDAR_ICS_PATH` at a local `.ics` file (e.g. an exported/sync'd calendar). No extra dependencies. `*.ics` files are gitignored.
+- `apple` — reads **Apple Calendar** via `osascript`/JXA. The first run prompts for **Automation** permission: approve it under **System Settings → Privacy & Security → Automation**. If denied or unavailable, the tab shows a clear error and you can fall back to `ics`.
+
+Event details are never written to logs.
+
+### Mac Stats
+
+Uses `psutil` to fetch CPU, RAM, Battery, and Uptime securely. GPU stats on macOS are limited; we provide a best-effort fallback without installing heavy dependencies. Stats polling does not expose usernames, serial numbers, or process lists.
 
 ## Using on Fire Tablet with Fully Kiosk Browser
 
@@ -156,7 +192,7 @@ The Settings tab and login screen both have a **"Request Fullscreen"** button th
 After the one-time setup above (venv + requirements installed on the Mac), you can start the server without opening a terminal:
 
 1. **`launch-mac.command`** (included) — double-click it in Finder to open Terminal and run the server; close the window or press `Ctrl+C` to stop. First run, macOS may block it: right-click → **Open** once. Drag it onto the Dock for one-tap launch, and set a custom icon via **Finder → Get Info → paste an image onto the icon**.
-2. **App with a real icon** — Open **Automator → New → Application → "Run Shell Script"**, paste `cd "$HOME/path/to/FireFrame" && ./scripts/start.sh`, and save as `Desk Companion.app` in `/Applications` or the Dock.
+2. **App with a real icon** — Open **Automator → New → Application → "Run Shell Script"**, paste `cd "$HOME/path/to/FireFrame" && ./scripts/start.sh`, and save as `FireFrame.app` in `/Applications` or the Dock.
 
 To start automatically at login instead of on a click, see *Running at Login* below.
 
@@ -170,7 +206,8 @@ You can copy this file to `~/Library/LaunchAgents/` and edit the paths to match 
 - **Password not working after change**: Stop and restart the server — `.env` is only read on startup.
 - **Actions failing**: Check the server logs. Ensure the macOS Shortcuts are named correctly and that the terminal running the server has Automation/Accessibility permissions.
 - **Disabling Risky Actions**: Edit `backend/config.py` and set `"enabled": False` for any action you want to disable.
-- **Calendar**: Currently uses placeholder events. Extend `backend/calendar_stub.py` to integrate real data later.
+- **Calendar**: Configure `CALENDAR_SOURCE` (see *macOS Feature Configuration*). If `apple` shows an error, grant Automation permission or switch to a local `.ics` file.
+- **Bluetooth connect/disconnect greyed out**: install the optional `blueutil` (`brew install blueutil`) and restart the server. Listing/status work without it.
 
 ## Open-Source Publishing Checklist
 
