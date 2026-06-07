@@ -41,25 +41,46 @@ BLUEUTIL_PATH = os.getenv("BLUEUTIL_PATH", "")
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "change-me")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "change-this-random-string")
 
-# General Settings
-# Allowed URLs for "Prepare Laptop" action
-PREPARE_LAPTOP_URLS = [
-    "https://calendar.google.com",
-    "https://mail.google.com",
-    "https://outlook.com",
-    "https://github.com",
-    "https://chatgpt.com"
-]
+# --- Buttons tab ---
+# "Prepare" opens these apps and links. Keep them generic in a public repo.
+PREPARE_APPS = ["Spotify", "Discord"]
+PREPARE_URLS = ["https://www.google.com"]
 
-# Action registry overrides
-# Set 'enabled': False to easily disable an action.
+# The Buttons tab registry. The frontend only sends one of these keys; the
+# backend looks it up here, so the browser can never run an arbitrary command.
+# Edit the Shortcut/app names below to match your own setup. Supported types:
+#   shortcut         run a macOS Shortcut by name (`shortcuts run "<name>"`)
+#   open_app         launch an app  (`open -a "<app>"`)
+#   open_url         open a URL or System Settings pane
+#   open_app_or_url  try the app, fall back to the URL
+#   mute             toggle system mute       sleep_mac  sleep this Mac (confirmed)
+#   prepare          open PREPARE_APPS + PREPARE_URLS
+#
+# Shortcuts to create in the macOS Shortcuts app for the focus modes:
+#   FireFrame DND, FireFrame Locked In, FireFrame Presentation Mode,
+#   FireFrame Break Mode, FireFrame Sleep Mode, FireFrame Quick Note
+SHORTCUT_ACTIONS = {
+    "dnd":              {"type": "shortcut", "shortcut": "FireFrame DND"},
+    "locked_in":        {"type": "shortcut", "shortcut": "FireFrame Locked In"},
+    "presentation":     {"type": "shortcut", "shortcut": "FireFrame Presentation Mode"},
+    "break_mode":       {"type": "shortcut", "shortcut": "FireFrame Break Mode"},
+    "sleep_focus":      {"type": "shortcut", "shortcut": "FireFrame Sleep Mode"},
+    "sleep_mac":        {"type": "sleep_mac"},
+    "mute":             {"type": "mute"},
+    "display_settings": {"type": "open_url",
+                         "url": "x-apple.systempreferences:com.apple.Displays-Settings.extension",
+                         "label": "Display Settings"},
+    "open_spotify":     {"type": "open_app", "app": "Spotify"},
+    "quick_note":       {"type": "shortcut", "shortcut": "FireFrame Quick Note"},
+    "gpt":              {"type": "open_app_or_url", "app": "ChatGPT",
+                         "url": "https://chatgpt.com/", "label": "ChatGPT"},
+    "wallpapers":       {"type": "open_app", "app": "MyWallpaper"},
+    "prepare":          {"type": "prepare"},
+}
+
+# Optional legacy Bluetooth shortcut actions (the Bluetooth tab handles
+# connect/disconnect directly; these only matter if you add custom buttons).
 ACTION_CONFIG = {
-    "toggle_dnd": {"enabled": True},
-    "toggle_locked_in": {"enabled": True},
-    "sleep_mode_alarm": {"enabled": True},
-    "open_calendar": {"enabled": True},
-    "prepare_laptop": {"enabled": True},
-    "open_assistant": {"enabled": True},
     "bluetooth_toggle": {"enabled": True},
     "bluetooth_connect_headphones": {"enabled": True},
     "bluetooth_disconnect_headphones": {"enabled": True},

@@ -16,6 +16,41 @@ def _flag(name, default="1"):
     return os.getenv(name, default) not in ("0", "false", "False", "")
 
 
+# Declarative registry for the Buttons tab. The frontend only ever sends one of
+# these keys; the backend looks it up here (no arbitrary commands). A local
+# backend/config.py can override any of this to point at the user's own macOS
+# Shortcut names or app names. Supported "type" values:
+#   shortcut         run a macOS Shortcut by name (`shortcuts run "<name>"`)
+#   open_app         launch an app  (`open -a "<app>"`)
+#   open_url         open a URL or settings pane (`open "<url>"`)
+#   open_app_or_url  try the app, fall back to the URL
+#   mute             toggle system mute (osascript)
+#   sleep_mac        sleep this Mac (pmset); the UI asks to confirm first
+#   prepare          open the PREPARE_APPS and PREPARE_URLS below
+_SHORTCUT_ACTIONS_DEFAULT = {
+    # Focus & Modes (macOS Shortcuts you create in the Shortcuts app)
+    "dnd":            {"type": "shortcut", "shortcut": "FireFrame DND"},
+    "locked_in":      {"type": "shortcut", "shortcut": "FireFrame Locked In"},
+    "presentation":   {"type": "shortcut", "shortcut": "FireFrame Presentation Mode"},
+    "break_mode":     {"type": "shortcut", "shortcut": "FireFrame Break Mode"},
+    "sleep_focus":    {"type": "shortcut", "shortcut": "FireFrame Sleep Mode"},
+    # Mac Controls (direct, no Shortcut needed)
+    "sleep_mac":      {"type": "sleep_mac"},
+    "mute":           {"type": "mute"},
+    "display_settings": {"type": "open_url",
+                         "url": "x-apple.systempreferences:com.apple.Displays-Settings.extension",
+                         "label": "Display Settings"},
+    # Apps & Tools (generic app names; change them in backend/config.py)
+    "open_spotify":   {"type": "open_app", "app": "Spotify"},
+    "quick_note":     {"type": "shortcut", "shortcut": "FireFrame Quick Note"},
+    "gpt":            {"type": "open_app_or_url", "app": "ChatGPT",
+                       "url": "https://chatgpt.com/", "label": "ChatGPT"},
+    "wallpapers":     {"type": "open_app", "app": "MyWallpaper"},
+    # FireFrame
+    "prepare":        {"type": "prepare"},
+}
+
+
 # Built-in, environment-driven defaults for every setting the app reads. A local
 # backend/config.py overrides any of these, so a config file written before a
 # given option existed keeps working when new options are added later.
@@ -38,8 +73,12 @@ _DEFAULTS = {
     # Bluetooth
     "BLUETOOTH_ALLOW_CONNECT": _flag("BLUETOOTH_ALLOW_CONNECT"),
     "BLUEUTIL_PATH": os.getenv("BLUEUTIL_PATH", ""),
+    # Buttons tab
+    "SHORTCUT_ACTIONS": _SHORTCUT_ACTIONS_DEFAULT,
+    # "Prepare" opens these apps and links. Keep them generic in a public repo.
+    "PREPARE_APPS": ["Spotify", "Discord"],
+    "PREPARE_URLS": ["https://www.google.com"],
     # Feature config (safe empties; a config file normally supplies these)
-    "PREPARE_LAPTOP_URLS": [],
     "ACTION_CONFIG": {},
     "BLUETOOTH_DEVICES": {},
 }

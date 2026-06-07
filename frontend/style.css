@@ -494,30 +494,78 @@ html, body {
     pointer-events: none;
 }
 
-/* Buttons tab: flat grid that fills the area, no scroll */
-#tab-buttons { padding: 0; overflow: hidden; }
-#tab-buttons.active {
+/* One-line description under a tile's title */
+.action-btn small {
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: var(--muted);
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    margin-top: -0.2rem;
+}
+
+/* Destructive tile (e.g. Sleep Mac) */
+.action-danger {
+    background: rgba(255, 69, 58, 0.14);
+    border-color: rgba(255, 69, 58, 0.32);
+}
+.action-danger:active {
+    background: rgba(255, 69, 58, 0.28);
+    border-color: rgba(255, 69, 58, 0.6);
+}
+
+/* Loading/pressed state while an action request is in flight */
+.action-btn.btn-busy {
+    opacity: 0.6;
+    pointer-events: none;
+    animation: btnPulse 1s ease-in-out infinite;
+}
+@keyframes btnPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 0.35; } }
+
+/* Buttons tab: scrollable, grouped sections */
+.deck-scroll {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    gap: 1.1rem;
+    padding-bottom: 1rem;
 }
-.deck-grid-full {
-    flex: 1;
-    min-height: 0;
+.deck-section-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 0.55rem;
+}
+.deck-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-auto-rows: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 0.7rem;
-    padding: 0.7rem;
 }
-.deck-grid-full .action-btn {
-    min-height: 0;
-    height: 100%;
-    width: 100%;
+.deck-grid .action-btn {
+    min-height: 96px;
+    gap: 0.35rem;
 }
-.deck-empty {
-    visibility: hidden;
-    pointer-events: none;
+
+/* Restart instructions modal */
+.restart-box { text-align: left; }
+.restart-steps {
+    margin: 0.2rem 0 0.4rem 1.1rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text);
+}
+.restart-steps code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.82rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.05rem 0.35rem;
 }
 
 /* ===================================================

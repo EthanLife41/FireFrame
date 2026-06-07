@@ -377,20 +377,29 @@ window.switchTab = switchTab; // used by inline onclick
 // ACTION BUTTONS
 // ============================================================
 function setupActions() {
+    // Server-backed actions (run through the config registry).
     document.querySelectorAll('.action-btn[data-action]').forEach(btn => {
-        btn.addEventListener('click', () => triggerAction(btn.getAttribute('data-action')));
+        btn.addEventListener('click', () => onActionButton(btn));
     });
-
-    // Second pomodoro trigger in buttons tab
-    const pomodoroBtn2 = document.getElementById('open-pomodoro-btn2');
-    if (pomodoroBtn2) {
-        pomodoroBtn2.addEventListener('click', () => {
-            document.getElementById('pomodoro-modal').classList.remove('hidden');
-        });
-    }
+    // Built-in timer buttons (client-side, no macOS setup needed).
+    document.querySelectorAll('.action-btn[data-timer]').forEach(btn => {
+        btn.addEventListener('click', () => startTimerMinutes(parseInt(btn.getAttribute('data-timer'), 10)));
+    });
+    // Restart instructions.
+    const restartBtn = document.getElementById('open-restart-btn');
+    if (restartBtn) restartBtn.addEventListener('click', () =>
+        document.getElementById('restart-modal').classList.remove('hidden'));
 }
 
-async function triggerAction(action, params = {}) {
+function onActionButton(btn) {
+    const action = btn.getAttribute('data-action');
+    const confirmMsg = btn.getAttribute('data-confirm');
+    if (confirmMsg) { showConfirm(confirmMsg, () => triggerAction(action, {}, btn)); return; }
+    triggerAction(action, {}, btn);
+}
+
+async function triggerAction(action, params = {}, btn = null) {
+    if (btn) { btn.classList.add('btn-busy'); btn.disabled = true; }
     try {
         const res  = await fetch('/api/action', {
             method: 'POST',
@@ -401,7 +410,21 @@ async function triggerAction(action, params = {}) {
         showToast(data.success ? (data.message || 'Done.') : `Error: ${data.message}`, !data.success);
     } catch {
         showToast('Connection error.', true);
+    } finally {
+        if (btn) { btn.classList.remove('btn-busy'); btn.disabled = false; }
     }
+}
+
+// Generic confirm dialog (used by destructive actions like Sleep Mac).
+let _confirmCb = null;
+function showConfirm(message, onConfirm) {
+    _confirmCb = onConfirm;
+    setText('confirm-message', message);
+    document.getElementById('confirm-modal').classList.remove('hidden');
+}
+function hideConfirm() {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    _confirmCb = null;
 }
 
 // ============================================================
@@ -1287,25 +1310,27 @@ function setText(id, val) {
 // MODALS
 // ============================================================
 function setupModals() {
-    // Sleep modal
-    const sleepModal = document.getElementById('sleep-modal');
-    document.getElementById('sleep-mode-btn').addEventListener('click', () =>
-        sleepModal.classList.remove('hidden'));
-    document.getElementById('cancel-sleep-btn').addEventListener('click', () =>
-        sleepModal.classList.add('hidden'));
-    document.getElementById('confirm-sleep-btn').addEventListener('click', () => {
-        const t = document.getElementById('wake-time').value;
-        if (!t) { showToast('Please set a wake time.', true); return; }
-        triggerAction('sleep_mode_alarm', { wake_time: t });
-        sleepModal.classList.add('hidden');
-    });
-
-    // Pomodoro modal
+    // Pomodoro / timer modal
     const pomodoroModal = document.getElementById('pomodoro-modal');
     document.getElementById('open-pomodoro-btn').addEventListener('click', () =>
         pomodoroModal.classList.remove('hidden'));
     document.getElementById('close-pomodoro-btn').addEventListener('click', () =>
         pomodoroModal.classList.add('hidden'));
+
+    // Restart-instructions modal
+    const restartClose = document.getElementById('restart-close-btn');
+    if (restartClose) restartClose.addEventListener('click', () =>
+        document.getElementById('restart-modal').classList.add('hidden'));
+
+    // Generic confirm modal
+    const confirmModal = document.getElementById('confirm-modal');
+    document.getElementById('confirm-cancel-btn').addEventListener('click', hideConfirm);
+    document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+        const cb = _confirmCb;
+        hideConfirm();
+        if (cb) cb();
+    });
+    if (confirmModal) confirmModal.addEventListener('click', e => { if (e.target === confirmModal) hideConfirm(); });
 
     setupTimer();
 }
@@ -1315,65 +1340,81 @@ function setupModals() {
 // ============================================================
 let timerSec = 25 * 60, timerRunning = false, timerInterval2 = null;
 
+function renderTimer() {
+    const display = document.getElementById('timer-display');
+    if (!display) return;
+    const m = String(Math.floor(timerSec / 60)).padStart(2, '0');
+    const s = String(timerSec % 60).padStart(2, '0');
+    display.textContent = `${m}:${s}`;
+}
+
+function timerToggleLabel(txt) {
+    const b = document.getElementById('timer-toggle-btn');
+    if (b) b.textContent = txt;
+}
+
+function startTimer() {
+    if (timerRunning) return;
+    timerRunning = true;
+    timerToggleLabel('Pause');
+    timerInterval2 = setInterval(() => {
+        if (timerSec > 0) {
+            timerSec--;
+            renderTimer();
+        } else {
+            pauseTimer();
+            timerToggleLabel('Start');
+            showToast('⏱️ Timer done!');
+        }
+    }, 1000);
+}
+
+function pauseTimer() {
+    clearInterval(timerInterval2);
+    timerInterval2 = null;
+    timerRunning = false;
+}
+
+function setTimerMinutes(mins, autostart) {
+    pauseTimer();
+    timerSec = Math.max(1, mins || 1) * 60;
+    renderTimer();
+    if (autostart) startTimer(); else timerToggleLabel('Start');
+}
+
+// Open the timer modal preset to N minutes and start it (used by the Timers tab).
+function startTimerMinutes(mins) {
+    const modal = document.getElementById('pomodoro-modal');
+    if (modal) modal.classList.remove('hidden');
+    setTimerMinutes(mins, true);
+}
+
 function setupTimer() {
-    const display   = document.getElementById('timer-display');
-    const toggleBtn = document.getElementById('timer-toggle-btn');
-
-    const render = () => {
-        const m = String(Math.floor(timerSec / 60)).padStart(2, '0');
-        const s = String(timerSec % 60).padStart(2, '0');
-        display.textContent = `${m}:${s}`;
-    };
-
     document.querySelectorAll('.timer-presets .btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const v = btn.getAttribute('data-time');
             let mins = 25;
             if (v === 'custom') {
                 const inp = prompt('Minutes:');
-                if (inp && !isNaN(inp)) mins = parseInt(inp);
+                if (!inp || isNaN(inp)) return;
+                mins = parseInt(inp, 10);
             } else {
-                mins = parseInt(v);
+                mins = parseInt(v, 10);
             }
-            clearInterval(timerInterval2);
-            timerRunning = false;
-            timerSec = mins * 60;
-            toggleBtn.textContent = 'Start';
-            render();
+            setTimerMinutes(mins, false);
         });
     });
 
-    toggleBtn.addEventListener('click', () => {
-        if (timerRunning) {
-            clearInterval(timerInterval2);
-            timerRunning = false;
-            toggleBtn.textContent = 'Resume';
-        } else {
-            timerRunning = true;
-            toggleBtn.textContent = 'Pause';
-            timerInterval2 = setInterval(() => {
-                if (timerSec > 0) {
-                    timerSec--;
-                    render();
-                } else {
-                    clearInterval(timerInterval2);
-                    timerRunning = false;
-                    toggleBtn.textContent = 'Start';
-                    showToast('⏱️ Timer done!');
-                }
-            }, 1000);
-        }
+    const toggleBtn = document.getElementById('timer-toggle-btn');
+    if (toggleBtn) toggleBtn.addEventListener('click', () => {
+        if (timerRunning) { pauseTimer(); timerToggleLabel('Resume'); }
+        else startTimer();
     });
 
-    document.getElementById('timer-reset-btn').addEventListener('click', () => {
-        clearInterval(timerInterval2);
-        timerRunning = false;
-        timerSec = 25 * 60;
-        toggleBtn.textContent = 'Start';
-        render();
-    });
+    const resetBtn = document.getElementById('timer-reset-btn');
+    if (resetBtn) resetBtn.addEventListener('click', () => setTimerMinutes(25, false));
 
-    render();
+    renderTimer();
 }
 
 // ============================================================

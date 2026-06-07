@@ -103,20 +103,38 @@ mkdir -p bin && cp /tmp/blueutil/blueutil bin/   # FireFrame auto-detects ./bin/
 
 Copy `.jpg`, `.jpeg`, `.png`, `.gif`, or `.webp` files into `photos/`, or set `PHOTOS_DIR` to a folder outside the repo. The Photos tab has shuffle, pause/resume, lock (stops on the current photo), and prev/next/random. Your shuffle/pause/locked choices persist in the browser via `localStorage`. Personal photos are gitignored and never committed.
 
-## macOS Shortcuts (for the Buttons tab)
+## Buttons tab (macOS control centre)
 
-The default buttons call these Shortcuts by name, so create them in the Shortcuts app:
+The Buttons tab is grouped into **Focus & Modes**, **Mac Controls**, **Apps & Tools**, **Timers**, and **FireFrame**. Each button maps to an entry in the `SHORTCUT_ACTIONS` registry in `backend/config.py` (or the defaults in `backend/config_loader.py`). The browser only ever sends the registry **key** — never a command — and the backend runs the matching `shortcuts run`, `open`, or small fixed command (never `shell=True`). To customise, copy `backend/config.example.py` to `backend/config.py` (gitignored) and edit the Shortcut/app names.
 
-| Shortcut | Does |
-|---|---|
-| `Desk Toggle DND` | Toggle Focus / Do Not Disturb |
-| `Desk Toggle Locked In Mode` | Toggle a "Locked In" Focus |
-| `Desk Sleep Mode` | Sleep or bedtime routine |
-| `Desk Bluetooth Toggle` | Toggle Bluetooth |
-| `Desk Connect Headphones` / `Desk Disconnect Headphones` | Your headphones |
-| `Desk Connect Speaker` / `Desk Disconnect Speaker` | Your speaker |
+Focus modes have no command-line equivalent on macOS, so they go through Shortcuts you create in the **Shortcuts app**. The others work out of the box.
 
-The backend runs them with `shortcuts run "<name>"` (never `shell=True`). To add a button, define an action ID in `backend/config.py`, then map it to a list-based `subprocess.run()` in `backend/actions.py`. Never accept arbitrary commands from the frontend.
+| Button | What it does | Type | Setup | Permissions | Test in Terminal |
+|---|---|---|---|---|---|
+| DND | Enables Do Not Disturb / Focus | macOS Shortcut | Create **FireFrame DND** | Shortcuts/Focus | `shortcuts run "FireFrame DND"` |
+| Locked In | Starts deep-work Focus | macOS Shortcut | Create **FireFrame Locked In** | Focus | `shortcuts run "FireFrame Locked In"` |
+| Presentation | Presentation Focus + muted notifications | macOS Shortcut | Create **FireFrame Presentation Mode** | Focus | `shortcuts run "FireFrame Presentation Mode"` |
+| Break | Switches to a break Focus | macOS Shortcut | Create **FireFrame Break Mode** | Optional | `shortcuts run "FireFrame Break Mode"` |
+| Sleep Mode | Enables **Sleep Focus** (not sleeping the Mac) | macOS Shortcut | Create **FireFrame Sleep Mode** | Focus | `shortcuts run "FireFrame Sleep Mode"` |
+| Sleep Mac | Sleeps this Mac (asks to confirm first) | Direct (`pmset sleepnow`) | None | May need Energy access | `pmset sleepnow` |
+| Mute | Toggles system mute | Direct (`osascript`) | None | Usually none | `osascript -e 'set volume output muted true'` |
+| Display | Opens Display settings | Direct (`open` URL) | None | None | `open "x-apple.systempreferences:com.apple.Displays-Settings.extension"` |
+| Spotify | Opens Spotify | Direct (`open -a`) | Install Spotify | None | `open -a Spotify` |
+| Quick Note | New quick note | macOS Shortcut | Create **FireFrame Quick Note** | Shortcuts | `shortcuts run "FireFrame Quick Note"` |
+| GPT | Opens the ChatGPT app, else the website | App or URL | Install ChatGPT (optional) | None | `open -a ChatGPT` |
+| Wallpapers | Opens the **MyWallpaper** app | Direct (`open -a`) | Install/rename in config | macOS may prompt | `open -a MyWallpaper` |
+| 5 / 15 / 25 / 45 min | Starts FireFrame's built-in timer | In-app (no setup) | None | None | n/a |
+| Prepare | Opens your work apps + links | Direct (`open`) | Edit `PREPARE_APPS` / `PREPARE_URLS` | None | `open -a Spotify` |
+| Restart | Shows safe restart instructions | Info modal | None | None | n/a |
+
+Notes:
+- **Shortcut names you must create:** `FireFrame DND`, `FireFrame Locked In`, `FireFrame Presentation Mode`, `FireFrame Break Mode`, `FireFrame Sleep Mode`, `FireFrame Quick Note`. (You can also point `prepare`/timers at Shortcuts named `FireFrame Prepare`, `FireFrame 5 Minute Timer`, etc. by editing the registry.)
+- **Timers** use FireFrame's own timer UI by default (most reliable). To use Shortcuts instead, set e.g. `"timer_25": {"type": "shortcut", "shortcut": "FireFrame 25 Minute Focus Timer"}` and add a button.
+- **MyWallpaper / Spotify / ChatGPT** are generic app names. If your app is named differently, change `app` in `SHORTCUT_ACTIONS`. If an app isn't installed, the button shows a clean "Is it installed?" error.
+- **Sleep Mac** is the only confirmed action and won't fire from a stray tap or background refresh.
+- **Restart** never restarts the server remotely; it shows manual steps (Ctrl-C in the terminal, re-run your launch command, then Reload App).
+
+To keep your setup out of Git, put your edited `SHORTCUT_ACTIONS`, `PREPARE_APPS`, and `PREPARE_URLS` in `backend/config.py`, which is gitignored. The committed `backend/config.example.py` carries only generic placeholders.
 
 ## Fire tablet (Fully Kiosk Browser)
 
