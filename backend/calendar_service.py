@@ -7,9 +7,11 @@
     apple  Apple Calendar via osascript/JXA, reading every accessible calendar
            (needs Automation permission)
 
-Events for the surrounding window are fetched once and cached, so day/week
-navigation filters in memory instead of re-running osascript. Refreshes are the
-only thing that forces a new read. Event details are never logged.
+Apple Calendar is read one month at a time and cached, so the first view only
+loads the month(s) it touches and navigating to another month fetches just
+that month. demo/ics load all their events at once (parsing is cheap). Within a
+cached month, day/week navigation filters in memory. Event details are never
+logged.
 """
 
 import hashlib
@@ -32,8 +34,13 @@ from backend.config_loader import (
 )
 from backend.calendar_stub import get_placeholder_events
 
-# One in-memory window of events, plus the metadata for the current source.
-_cache = {"start": None, "end": None, "events": None, "ts": 0.0, "meta": {}, "full": False}
+# Metadata from the most recent load (connected / source / error / message).
+_meta = {"connected": False, "source": "none", "error": None, "message": None}
+# "Full" sources (none / demo / ics) are cheap, so they load every event at once.
+_full = {"events": None, "ts": 0.0}
+# Apple Calendar is fetched one month at a time, on demand, and kept cached.
+_months = {}          # "YYYY-MM" -> {"events": [...], "ts": float}
+_MAX_MONTHS = 12      # cap on months held in memory
 # Serialise expensive reads so two requests never spawn osascript at once.
 _fetch_lock = threading.Lock()
 
@@ -200,6 +207,11 @@ def _parse_ics(source: str) -> list:
 # Reads every accessible calendar and keeps events that overlap [start, end):
 # startDate < end AND endDate > start. That overlap test (instead of a
 # startDate-only "greater than") is what lets all-day and ongoing events show.
+#
+# Each property is fetched in a single bulk call per calendar (e.g. one
+# `summary()` for the whole filtered set), not once per event. Per-event reads
+# cost an Apple Event round-trip each and make the query time out on real
+# calendars; the bulk form is far faster.
 
 _JXA_TEMPLATE = """
 (() => {
@@ -212,30 +224,38 @@ _JXA_TEMPLATE = """
   for (let i = 0; i < cals.length; i++) {
     let name = "";
     try { name = cals[i].name(); } catch (e) {}
-    let evs;
     try {
-      evs = cals[i].events.whose({ _and: [
+      const f = cals[i].events.whose({ _and: [
         { startDate: { _lessThan: end } },
         { endDate: { _greaterThan: start } }
-      ]})();
-    } catch (e) { continue; }
-    for (let j = 0; j < evs.length; j++) {
-      try {
+      ]});
+      const titles = f.summary();
+      const starts = f.startDate();
+      const ends = f.endDate();
+      const allday = f.alldayEvent();
+      let locs = [], uids = [];
+      try { locs = f.location(); } catch (e) {}
+      try { uids = f.uid(); } catch (e) {}
+      for (let j = 0; j < titles.length; j++) {
         out.push({
-          uid: evs[j].uid(),
-          title: evs[j].summary(),
-          start: evs[j].startDate().toISOString(),
-          end: evs[j].endDate().toISOString(),
-          allday: evs[j].alldayEvent(),
-          location: evs[j].location() || "",
+          uid: uids[j] || null,
+          title: titles[j],
+          start: starts[j] ? starts[j].toISOString() : null,
+          end: ends[j] ? ends[j].toISOString() : null,
+          allday: allday[j],
+          location: locs[j] || "",
           calendar: name
         });
-      } catch (e) {}
-    }
+      }
+    } catch (e) { continue; }
   }
   return JSON.stringify(out);
 })()
 """
+
+# A real Mac with several calendars can still need a few seconds on the first
+# (uncached) read; keep this generous since results are cached afterwards.
+_APPLE_TIMEOUT_SECONDS = 45
 
 
 def _query_apple_calendar(start_dt: datetime, end_dt: datetime) -> list:
@@ -245,7 +265,7 @@ def _query_apple_calendar(start_dt: datetime, end_dt: datetime) -> list:
     proc = subprocess.run(
         ["osascript", "-l", "JavaScript", "-e", script],
         capture_output=True,
-        timeout=30,
+        timeout=_APPLE_TIMEOUT_SECONDS,
         text=True,
     )
     if proc.returncode != 0 or not proc.stdout.strip():
@@ -253,89 +273,11 @@ def _query_apple_calendar(start_dt: datetime, end_dt: datetime) -> list:
     return json.loads(proc.stdout)
 
 
-# --- window load + cache ---
+# --- load + cache ---
 
-def _load_window(win_start: datetime, win_end: datetime) -> dict:
-    source = (CALENDAR_SOURCE or "none").strip().lower()
-
-    if source == "demo":
-        evs = get_placeholder_events()
-        for e in evs:
-            e["calendar"] = "Demo"
-        return {"connected": True, "source": "demo", "error": None, "full": True,
-                "events": _shape(evs)}
-
-    if source == "ics":
-        srcs = _ics_sources()
-        if not srcs:
-            return {"connected": False, "source": "ics", "error": "no_path", "full": True,
-                    "events": [], "message": "No ICS path configured (set CALENDAR_ICS_PATH)."}
-        try:
-            collected = []
-            for src in srcs:
-                label = _source_label(src)
-                for ev in _parse_ics(src):
-                    ev["calendar"] = label
-                    collected.append(ev)
-            return {"connected": True, "source": "ics", "error": None, "full": True,
-                    "events": _shape(collected)}
-        except FileNotFoundError:
-            return {"connected": False, "source": "ics", "error": "file_not_found", "full": True,
-                    "events": [], "message": "An ICS file was not found."}
-        except urllib.error.URLError:
-            return {"connected": False, "source": "ics", "error": "fetch_failed", "full": True,
-                    "events": [], "message": "Could not fetch the calendar URL."}
-        except Exception:
-            return {"connected": False, "source": "ics", "error": "parse_failed", "full": True,
-                    "events": [], "message": "Could not read an ICS source."}
-
-    if source == "apple":
-        if platform.system() != "Darwin":
-            return {"connected": False, "source": "apple", "error": "not_macos", "full": False,
-                    "events": [], "message": "Apple Calendar is only available on macOS."}
-        try:
-            return {"connected": True, "source": "apple", "error": None, "full": False,
-                    "events": _shape(_query_apple_calendar(win_start, win_end))}
-        except subprocess.TimeoutExpired:
-            return {"connected": False, "source": "apple", "error": "timeout", "full": False,
-                    "events": [], "message": "Apple Calendar query timed out."}
-        except FileNotFoundError:
-            return {"connected": False, "source": "apple", "error": "no_osascript", "full": False,
-                    "events": [], "message": "osascript is not available."}
-        except Exception:
-            return {"connected": False, "source": "apple", "error": "unavailable", "full": False,
-                    "events": [],
-                    "message": "Could not read Apple Calendar. Grant Automation permission "
-                               "(System Settings > Privacy & Security > Automation) or use ICS."}
-
-    return {"connected": False, "source": "none", "error": None, "full": True, "events": [],
-            "message": "Calendar not connected. Set CALENDAR_SOURCE to enable it."}
-
-
-def _covers(req_start: datetime, req_end: datetime) -> bool:
-    if _cache["full"]:
-        return True
-    return (_cache["start"] is not None
-            and _cache["start"] <= req_start and req_end <= _cache["end"])
-
-
-def _ensure(req_start: datetime, req_end: datetime) -> None:
-    """Make sure the cache holds a fresh window covering [req_start, req_end)."""
-    now = time.time()
-    if _cache["events"] is not None and (now - _cache["ts"]) < _ttl() and _covers(req_start, req_end):
-        return
-    with _fetch_lock:
-        now = time.time()
-        if _cache["events"] is not None and (now - _cache["ts"]) < _ttl() and _covers(req_start, req_end):
-            return  # another request filled it while we waited
-        pad = timedelta(days=7)  # padding so adjacent day/week navigation stays in cache
-        win_start, win_end = req_start - pad, req_end + pad
-        data = _load_window(win_start, win_end)
-        _cache.update(
-            start=win_start, end=win_end, events=data["events"], ts=time.time(),
-            full=data.get("full", False),
-            meta={k: data.get(k) for k in ("connected", "source", "error", "message")},
-        )
+def _set_meta(data: dict) -> None:
+    _meta.update(connected=data.get("connected", False), source=data.get("source", "none"),
+                 error=data.get("error"), message=data.get("message"))
 
 
 def _overlap(events: list, a: datetime, b: datetime) -> list:
@@ -346,24 +288,166 @@ def _public(events: list) -> list:
     return [{k: v for k, v in e.items() if not k.startswith("_")} for e in events]
 
 
+def _load_full(source: str) -> dict:
+    """Load every event for a 'full' (cheap) source: demo, ics, or none."""
+    if source == "demo":
+        evs = get_placeholder_events()
+        for e in evs:
+            e["calendar"] = "Demo"
+        return {"connected": True, "source": "demo", "error": None, "events": _shape(evs)}
+
+    if source == "ics":
+        srcs = _ics_sources()
+        if not srcs:
+            return {"connected": False, "source": "ics", "error": "no_path",
+                    "events": [], "message": "No ICS path configured (set CALENDAR_ICS_PATH)."}
+        try:
+            collected = []
+            for src in srcs:
+                label = _source_label(src)
+                for ev in _parse_ics(src):
+                    ev["calendar"] = label
+                    collected.append(ev)
+            return {"connected": True, "source": "ics", "error": None, "events": _shape(collected)}
+        except FileNotFoundError:
+            return {"connected": False, "source": "ics", "error": "file_not_found",
+                    "events": [], "message": "An ICS file was not found."}
+        except urllib.error.URLError:
+            return {"connected": False, "source": "ics", "error": "fetch_failed",
+                    "events": [], "message": "Could not fetch the calendar URL."}
+        except Exception:
+            return {"connected": False, "source": "ics", "error": "parse_failed",
+                    "events": [], "message": "Could not read an ICS source."}
+
+    return {"connected": False, "source": "none", "error": None, "events": [],
+            "message": "Calendar not connected. Set CALENDAR_SOURCE to enable it."}
+
+
+def _ensure_full(source: str) -> None:
+    now = time.time()
+    if _full["events"] is not None and (now - _full["ts"]) < _ttl():
+        return
+    with _fetch_lock:
+        if _full["events"] is not None and (time.time() - _full["ts"]) < _ttl():
+            return
+        data = _load_full(source)
+        _full["events"] = data["events"]
+        _full["ts"] = time.time()
+        _set_meta(data)
+
+
+# Apple Calendar: fetched and cached one month at a time.
+
+def _ym(d: date) -> str:
+    return f"{d.year:04d}-{d.month:02d}"
+
+
+def _month_bounds(d: date):
+    start = datetime(d.year, d.month, 1)
+    nxt = datetime(d.year + 1, 1, 1) if d.month == 12 else datetime(d.year, d.month + 1, 1)
+    return start, nxt
+
+
+def _months_in_range(a: datetime, b: datetime) -> list:
+    """First-of-month dates for every month the half-open range [a, b) touches."""
+    months = []
+    cur = date(a.year, a.month, 1)
+    last_dt = b - timedelta(microseconds=1)   # b is exclusive
+    last = date(last_dt.year, last_dt.month, 1)
+    while cur <= last:
+        months.append(cur)
+        cur = date(cur.year + 1, 1, 1) if cur.month == 12 else date(cur.year, cur.month + 1, 1)
+    return months
+
+
+def _evict_months() -> None:
+    while len(_months) > _MAX_MONTHS:
+        del _months[min(_months, key=lambda k: _months[k]["ts"])]
+
+
+def _fetch_month_locked(d: date):
+    """Cache one month if missing/stale. Returns (code, message) on failure, else None.
+    The caller must hold _fetch_lock."""
+    ym = _ym(d)
+    entry = _months.get(ym)
+    if entry is not None and (time.time() - entry["ts"]) < _ttl():
+        return None
+    start, nxt = _month_bounds(d)
+    try:
+        _months[ym] = {"events": _shape(_query_apple_calendar(start, nxt)), "ts": time.time()}
+        _evict_months()
+        return None
+    except subprocess.TimeoutExpired:
+        return ("timeout",
+                "Apple Calendar took too long to respond. Approve the Automation prompt "
+                "(System Settings > Privacy & Security > Automation), then retry, or use an "
+                "ICS source if you have very large calendars.")
+    except FileNotFoundError:
+        return ("no_osascript", "osascript is not available.")
+    except Exception:
+        return ("unavailable",
+                "Could not read Apple Calendar. Grant Automation permission "
+                "(System Settings > Privacy & Security > Automation) or use ICS.")
+
+
+def _collect_apple(a: datetime, b: datetime) -> list:
+    if platform.system() != "Darwin":
+        _meta.update(connected=False, source="apple", error="not_macos",
+                     message="Apple Calendar is only available on macOS.")
+        return []
+    months = _months_in_range(a, b)
+    errs = []
+    with _fetch_lock:
+        for m in months:
+            err = _fetch_month_locked(m)
+            if err:
+                errs.append(err)
+    # Combine the months we have (dedupe events that span a month boundary).
+    combined = {}
+    for m in months:
+        entry = _months.get(_ym(m))
+        if entry:
+            for ev in entry["events"]:
+                combined[ev["id"]] = ev
+    events = list(combined.values())
+    if errs and not events:
+        code, msg = errs[0]
+        _meta.update(connected=False, source="apple", error=code, message=msg)
+    else:
+        _meta.update(connected=True, source="apple", error=None, message=None)
+    return events
+
+
+def _collect(a: datetime, b: datetime) -> list:
+    """Events overlapping [a, b), loading only what's needed. Updates _meta."""
+    source = (CALENDAR_SOURCE or "none").strip().lower()
+    if source == "apple":
+        events = _collect_apple(a, b)
+    elif source in ("demo", "ics"):
+        _ensure_full(source)
+        events = _full["events"] or []
+    else:
+        _meta.update(connected=False, source="none", error=None,
+                     message="Calendar not connected. Set CALENDAR_SOURCE to enable it.")
+        events = []
+    return sorted(_overlap(events, a, b), key=lambda e: e["_start_dt"])
+
+
 # --- public API ---
 
 def get_day(date_str=None) -> dict:
     d = _parse_date(date_str) or date.today()
     a = datetime(d.year, d.month, d.day)
     b = a + timedelta(days=1)
-    _ensure(a, b)
-    events = _overlap(_cache["events"], a, b)
-    return {**_cache["meta"], "view": "day", "date": d.isoformat(), "events": _public(events)}
+    return {**_meta, "view": "day", "date": d.isoformat(), "events": _public(_collect(a, b))}
 
 
 def get_week(start_str=None) -> dict:
     d = _parse_date(start_str) or _monday(date.today())
     a = datetime(d.year, d.month, d.day)
     b = a + timedelta(days=7)
-    _ensure(a, b)
-    events = _overlap(_cache["events"], a, b)
-    return {**_cache["meta"], "view": "week", "start": d.isoformat(),
+    events = _collect(a, b)
+    return {**_meta, "view": "week", "start": d.isoformat(),
             "end": (d + timedelta(days=6)).isoformat(), "events": _public(events)}
 
 
@@ -375,23 +459,23 @@ def get_upcoming() -> dict:
     days = max(1, int(CALENDAR_UPCOMING_DAYS))
     a = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     b = a + timedelta(days=days)
-    _ensure(a, b)
-    events = sorted(_overlap(_cache["events"], a, b), key=lambda e: e["_start_dt"])[:25]
-    return {**_cache["meta"], "events": _public(events)}
+    return {**_meta, "events": _public(_collect(a, b)[:25])}
 
 
 def get_sources() -> dict:
     a = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    _ensure(a, a + timedelta(days=max(1, int(CALENDAR_UPCOMING_DAYS))))
+    events = _collect(a, a + timedelta(days=max(1, int(CALENDAR_UPCOMING_DAYS))))
     seen, names = set(), []
-    for e in _cache["events"] or []:
+    for e in events:
         n = e["calendar"]
         if n and n not in seen:
             seen.add(n)
             names.append({"name": n, "id": e["calendar_id"]})
-    return {**_cache["meta"], "sources": names}
+    return {**_meta, "sources": names}
 
 
 def refresh_calendar() -> dict:
-    _cache.update(start=None, end=None, events=None, ts=0.0, full=False)
+    _full["events"] = None
+    _full["ts"] = 0.0
+    _months.clear()
     return get_upcoming()
