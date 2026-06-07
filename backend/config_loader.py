@@ -35,6 +35,7 @@ _DEFAULTS = {
     "PHOTO_INTERVAL_SECONDS": int(os.getenv("PHOTO_INTERVAL_SECONDS", "30")),
     # Bluetooth
     "BLUETOOTH_ALLOW_CONNECT": _flag("BLUETOOTH_ALLOW_CONNECT"),
+    "BLUEUTIL_PATH": os.getenv("BLUEUTIL_PATH", ""),
     # Feature config (safe empties; a config file normally supplies these)
     "PREPARE_LAPTOP_URLS": [],
     "ACTION_CONFIG": {},

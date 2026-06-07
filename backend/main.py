@@ -122,7 +122,7 @@ async def login(req: LoginRequest, request: Request, response: Response):
         )
         return {"success": True}
 
-    # Wrong password — record failed attempt
+    # Wrong password: record the failed attempt
     record_failed_attempt(ip)
     record = _login_attempts[ip]
     remaining = MAX_ATTEMPTS - record["attempts"]

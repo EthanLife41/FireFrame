@@ -1,9 +1,7 @@
-"""Local photo listing.
+"""Lists local image files for the photo slideshow.
 
-Photos are read from a local folder. The folder defaults to ``../photos`` in
-the repo, but can be pointed anywhere with the ``PHOTOS_DIR`` env var so each
-person can keep their own pictures outside the repository. No personal images
-are ever committed (see .gitignore).
+Reads from ./photos by default, or PHOTOS_DIR if set, so pictures can live
+outside the repo. Images are never committed (see .gitignore).
 """
 
 import os

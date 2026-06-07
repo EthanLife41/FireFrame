@@ -1,7 +1,4 @@
-// ============================================================
-// FireFrame — app.js
-// Target: Fire HD 8, landscape, Fully Kiosk Browser
-// ============================================================
+// FireFrame frontend. Built for the Fire HD 8 in landscape (Fully Kiosk Browser).
 
 // Global error logger for easier troubleshooting on tablets
 window.addEventListener('error', (event) => {
@@ -96,7 +93,7 @@ async function attemptLogin(password) {
             showLoginError(msg, false);
         }
     } catch {
-        showLoginError('Connection error — is the server running?', false);
+        showLoginError('Connection error. Is the server running?', false);
     }
 }
 
@@ -282,7 +279,7 @@ function setupFullscreen() {
         const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
         if (req) {
             req.call(el).catch(() => {
-                showToast('Fullscreen blocked — use Fully Kiosk Browser settings instead.', true);
+                showToast('Fullscreen blocked. Use Fully Kiosk Browser settings instead.', true);
             });
         } else {
             showToast('Fullscreen API not supported by this browser.', true);
@@ -593,7 +590,7 @@ function btShowOnly(visibleId) {
 
 async function loadBluetooth(force = false) {
     btShowOnly('bt-loading');
-    setText('bt-state-text', 'Scanning…');
+    setText('bt-state-text', 'Scanning...');
     try {
         const url = force ? '/api/bluetooth/refresh' : '/api/bluetooth/devices';
         const res = await fetch(url, { method: force ? 'POST' : 'GET' });
@@ -691,7 +688,7 @@ async function btAction(want, id, btnEl) {
     if (!id) return;
     btnEl.disabled = true;
     const original = btnEl.textContent;
-    btnEl.textContent = want === 'connect' ? 'Connecting…' : 'Disconnecting…';
+    btnEl.textContent = want === 'connect' ? 'Connecting...' : 'Disconnecting...';
     try {
         const res = await fetch('/api/bluetooth/' + want, {
             method: 'POST',
@@ -813,8 +810,7 @@ function setupTimer() {
 }
 
 // ============================================================
-// PHOTOS — gallery / slideshow with shuffle, pause, lock
-// State persists across reloads via localStorage.
+// PHOTOS  (shuffle / pause / lock; state persists in localStorage)
 // ============================================================
 const PH_KEYS = { shuffle: 'ff_photo_shuffle', paused: 'ff_photo_paused', locked: 'ff_photo_locked' };
 
@@ -904,7 +900,7 @@ function restartPhotoTimer() {
 
 function stepPhoto(dir, isAuto = false) {
     if (!photoOrder.length) return;
-    // Manual prev/next means the user is leaving the locked photo → release the lock.
+    // Manual prev/next leaves the locked photo, so drop the lock.
     if (photoLockedName && !isAuto) clearLock();
     photoPos = (photoPos + dir + photoOrder.length) % photoOrder.length;
     renderCurrent();

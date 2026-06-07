@@ -13,6 +13,9 @@ logs/
 # Local calendar exports — never commit private calendar data
 *.ics
 
+# Project-local tool binaries (e.g. blueutil) — don't commit binaries
+bin/
+
 # Ignore everything in photos/ except the README (no personal images in git)
 photos/*
 !photos/README.md

@@ -1,21 +1,19 @@
-"""Calendar service — macOS-first, pluggable source.
+"""Calendar service with a pluggable source, selected by CALENDAR_SOURCE:
 
-The source is chosen with the ``CALENDAR_SOURCE`` env var (see config.example.py):
+    none   nothing configured (default); the UI shows "not connected"
+    demo   built-in placeholder events, handy for testing the UI
+    ics    a local .ics file or an https URL (CALENDAR_ICS_PATH)
+    apple  Apple Calendar via osascript/JXA (needs Automation permission)
 
-    none   - nothing configured (default). UI shows "Calendar not connected".
-    demo   - built-in placeholder events (good for UI testing).
-    ics     - parse a local .ics file at CALENDAR_ICS_PATH (no extra deps).
-    apple  - read Apple Calendar via osascript/JXA (needs Automation permission).
-
-Real integration is intentionally behind a clean interface so the frontend and
-routes are ready for live data. No event details are ever logged, and no
-credentials/tokens/paths are stored in the repo.
+Results are cached for a minute. Event details are never logged.
 """
 
 import json
 import platform
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
 
 from backend.config_loader import (
@@ -29,11 +27,8 @@ _CACHE_TTL_SECONDS = 60
 _cache = {"ts": 0.0, "payload": None}
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 def _to_local_naive(dt: datetime) -> datetime:
-    """Normalise to naive local time so all comparisons are apples-to-apples."""
+    """Drop tz info (converting to local) so every comparison is naive-vs-naive."""
     if dt.tzinfo is not None:
         dt = dt.astimezone().replace(tzinfo=None)
     return dt
@@ -52,7 +47,7 @@ def _parse_iso(value: str):
 
 
 def _shape(events: list) -> list:
-    """Sort by start and keep a clean, serialisable shape."""
+    """Normalize raw events to a sorted, serialisable list."""
     cleaned = []
     for ev in events:
         start = _parse_iso(ev.get("start", ""))
@@ -73,9 +68,8 @@ def _shape(events: list) -> list:
     return cleaned
 
 
-# ---------------------------------------------------------------------------
-# Source: ICS
-# ---------------------------------------------------------------------------
+# --- ICS source ---
+
 def _ics_datetime(prop: str, value: str):
     value = value.strip()
     params = prop.upper()
@@ -93,11 +87,21 @@ def _ics_datetime(prop: str, value: str):
         return None
 
 
-def _parse_ics(path: str) -> list:
-    with open(path, "r", encoding="utf-8", errors="replace") as fh:
-        raw = fh.read()
+def _read_ics_text(source: str) -> str:
+    # A URL lets you use the Google "secret address in iCal format". That URL is
+    # a credential, so it lives in .env, never in the repo.
+    if source.lower().startswith(("http://", "https://")):
+        req = urllib.request.Request(source, headers={"User-Agent": "FireFrame"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.read().decode("utf-8", errors="replace")
+    with open(source, "r", encoding="utf-8", errors="replace") as fh:
+        return fh.read()
 
-    # Unfold RFC 5545 line continuations (lines beginning with space/tab).
+
+def _parse_ics(source: str) -> list:
+    raw = _read_ics_text(source)
+
+    # Unfold RFC 5545 continuation lines (those starting with a space or tab).
     lines = []
     for line in raw.splitlines():
         if line[:1] in (" ", "\t") and lines:
@@ -129,9 +133,8 @@ def _parse_ics(path: str) -> list:
     return events
 
 
-# ---------------------------------------------------------------------------
-# Source: Apple Calendar via JXA
-# ---------------------------------------------------------------------------
+# --- Apple Calendar source (JXA) ---
+
 _JXA_TEMPLATE = """
 (() => {
   const Cal = Application("Calendar");
@@ -167,22 +170,19 @@ _JXA_TEMPLATE = """
 
 def _query_apple_calendar() -> list:
     days = max(1, int(CALENDAR_UPCOMING_DAYS))
-    script = _JXA_TEMPLATE % days
     proc = subprocess.run(
-        ["osascript", "-l", "JavaScript", "-e", script],
+        ["osascript", "-l", "JavaScript", "-e", _JXA_TEMPLATE % days],
         capture_output=True,
         timeout=30,
         text=True,
     )
     if proc.returncode != 0 or not proc.stdout.strip():
-        # Most common cause: Automation permission not granted yet.
-        raise RuntimeError("apple_calendar_unavailable")
+        raise RuntimeError("apple_calendar_unavailable")  # usually a missing permission
     return json.loads(proc.stdout)
 
 
-# ---------------------------------------------------------------------------
-# Load + cache
-# ---------------------------------------------------------------------------
+# --- Load + cache ---
+
 def _load() -> dict:
     source = (CALENDAR_SOURCE or "none").strip().lower()
 
@@ -200,9 +200,12 @@ def _load() -> dict:
         except FileNotFoundError:
             return {"connected": False, "source": "ics", "error": "file_not_found",
                     "events": [], "message": "ICS file not found."}
+        except urllib.error.URLError:
+            return {"connected": False, "source": "ics", "error": "fetch_failed",
+                    "events": [], "message": "Could not fetch the calendar URL. Check CALENDAR_ICS_PATH."}
         except Exception:
             return {"connected": False, "source": "ics", "error": "parse_failed",
-                    "events": [], "message": "Could not read the ICS file."}
+                    "events": [], "message": "Could not read the ICS source."}
 
     if source == "apple":
         if platform.system() != "Darwin":
@@ -224,7 +227,6 @@ def _load() -> dict:
                                "permission (System Settings > Privacy & Security > "
                                "Automation) or use an ICS file."}
 
-    # Default: nothing configured.
     return {"connected": False, "source": "none", "error": None, "events": [],
             "message": "Calendar not connected. Set CALENDAR_SOURCE to enable it."}
 
@@ -238,21 +240,15 @@ def _cached() -> dict:
 
 
 def _public(events: list) -> list:
-    """Strip internal fields before returning to the API."""
     return [{k: v for k, v in e.items() if not k.startswith("_")} for e in events]
 
 
-# ---------------------------------------------------------------------------
-# Public API (used by routes)
-# ---------------------------------------------------------------------------
 def get_upcoming() -> dict:
     data = _cached()
     days = max(1, int(CALENDAR_UPCOMING_DAYS))
-    now = datetime.now()
-    horizon = now + timedelta(days=days)
-    upcoming = [e for e in data["events"]
-                if e["_start_dt"] >= now.replace(hour=0, minute=0, second=0, microsecond=0)
-                and e["_start_dt"] <= horizon]
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    horizon = midnight + timedelta(days=days)
+    upcoming = [e for e in data["events"] if midnight <= e["_start_dt"] <= horizon]
     return {
         "connected": data["connected"],
         "source": data["source"],

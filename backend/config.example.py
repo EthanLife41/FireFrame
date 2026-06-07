@@ -28,6 +28,9 @@ PHOTO_INTERVAL_SECONDS = int(os.getenv("PHOTO_INTERVAL_SECONDS", "30"))
 # Connect/disconnect needs the optional 'blueutil' tool. Set to 0 to disable
 # those actions entirely (listing/status still work).
 BLUETOOTH_ALLOW_CONNECT = os.getenv("BLUETOOTH_ALLOW_CONNECT", "1") not in ("0", "false", "False", "")
+# Optional explicit path to the blueutil binary. Leave empty to auto-detect
+# (project-local ./bin/blueutil, then anything on PATH).
+BLUEUTIL_PATH = os.getenv("BLUEUTIL_PATH", "")
 
 # Security Settings
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "change-me")

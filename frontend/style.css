@@ -1,9 +1,5 @@
-/* ===================================================
-   FireFrame — dark UI
-   Target: Fire HD 8, landscape, Fully Kiosk Browser
-   Design language: iOS / iPadOS dark mode (glass panels,
-   hairline borders, soft shadows, pill controls).
-   =================================================== */
+/* FireFrame dark theme, built for the Fire HD 8 in landscape.
+   iOS-style: glass panels, hairline borders, soft shadows, pill controls. */
 
 /* ---------- Reset ---------- */
 *, *::before, *::after {
@@ -39,12 +35,12 @@ input, textarea {
     --border:          rgba(255, 255, 255, 0.10);
     --border-strong:   rgba(255, 255, 255, 0.18);
 
-    /* Text — Apple label hierarchy */
+    /* Text: label hierarchy */
     --text:     #f5f5f7;
     --muted:    rgba(235, 235, 245, 0.62);
     --muted-2:  rgba(235, 235, 245, 0.32);
 
-    /* Accents (system-style) — names kept for the inline JS that reads them */
+    /* Accent colors. Names are read by the inline JS, so keep them. */
     --primary:     #0a84ff;
     --primary-dk:  #0066cc;
     --primary-lt:  #339cff;
@@ -264,7 +260,7 @@ html, body {
     transform: scale(1.1);
 }
 
-/* Passcode keypad — circular keys */
+/* Passcode keypad: circular keys */
 .pin-pad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -498,7 +494,7 @@ html, body {
     pointer-events: none;
 }
 
-/* Buttons tab — flat grid that fills the area, no scroll */
+/* Buttons tab: flat grid that fills the area, no scroll */
 #tab-buttons { padding: 0; overflow: hidden; }
 #tab-buttons.active {
     display: flex;
@@ -632,7 +628,7 @@ html, body {
 .btn-group { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 
 /* ===================================================
-   BOTTOM NAV — translucent glass bar
+   BOTTOM NAV: translucent glass bar
    =================================================== */
 .bottom-nav {
     flex-shrink: 0;
@@ -767,7 +763,7 @@ html, body {
 }
 
 /* ===================================================
-   VERSION / DEBUG LABEL — stays out of the way
+   VERSION / DEBUG LABEL
    =================================================== */
 .version-indicator {
     position: fixed;
@@ -799,7 +795,7 @@ html, body {
 }
 
 /* ===================================================
-   SHARED — pills, card heads, state messages
+   SHARED: pills, card heads, state messages
    =================================================== */
 .pill-badge {
     font-size: 0.72rem;
@@ -857,7 +853,7 @@ html, body {
 .bt-row .btn { flex-shrink: 0; min-width: 124px; }
 
 /* ===================================================
-   PHOTOS — badges + control bar
+   PHOTOS: badges + control bar
    =================================================== */
 .photo-badges {
     position: absolute;
@@ -920,7 +916,7 @@ html, body {
 }
 
 /* ===================================================
-   BOTTOM NAV — keep 6 items legible on the Fire HD 8
+   BOTTOM NAV: keep 6 items legible on the Fire HD 8
    =================================================== */
 .nav-btn span:last-child { white-space: nowrap; }
 @media (max-width: 720px) {
