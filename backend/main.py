@@ -19,7 +19,14 @@ from backend.bluetooth import (
 )
 from backend.stats import get_mac_stats
 from backend.photos import get_photos_payload, get_random_photo, PHOTOS_DIR
-from backend.calendar_service import get_today, get_upcoming, refresh_calendar
+from backend.calendar_service import (
+    get_today,
+    get_day,
+    get_week,
+    get_upcoming,
+    get_sources,
+    refresh_calendar,
+)
 
 app = FastAPI(title="FireFrame API")
 
@@ -185,6 +192,18 @@ async def mac_stats(user: bool = Depends(get_current_user)):
 @app.get("/api/calendar/today")
 async def calendar_today(user: bool = Depends(get_current_user)):
     return get_today()
+
+@app.get("/api/calendar/day")
+async def calendar_day(date: str = "", user: bool = Depends(get_current_user)):
+    return get_day(date or None)
+
+@app.get("/api/calendar/week")
+async def calendar_week(start: str = "", user: bool = Depends(get_current_user)):
+    return get_week(start or None)
+
+@app.get("/api/calendar/sources")
+async def calendar_sources(user: bool = Depends(get_current_user)):
+    return get_sources()
 
 @app.get("/api/calendar/upcoming")
 async def calendar_upcoming(user: bool = Depends(get_current_user)):

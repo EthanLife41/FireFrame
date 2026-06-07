@@ -15,9 +15,14 @@ PORT = int(os.getenv("PORT", 8765))
 #   ics   - parse a local .ics file at CALENDAR_ICS_PATH
 #   apple - read Apple Calendar via osascript/JXA (needs Automation permission)
 CALENDAR_SOURCE = os.getenv("CALENDAR_SOURCE", "none")
-# Local path to an .ics file when CALENDAR_SOURCE=ics. Keep this out of the repo.
+# For CALENDAR_SOURCE=ics: a single .ics path or https URL. Keep it out of the repo.
 CALENDAR_ICS_PATH = os.getenv("CALENDAR_ICS_PATH", "")
+# Optional: several .ics files at once, separated by the OS path separator
+# (":" on macOS/Linux), e.g. /path/one.ics:/path/two.ics
+CALENDAR_ICS_PATHS = os.getenv("CALENDAR_ICS_PATHS", "")
 CALENDAR_UPCOMING_DAYS = int(os.getenv("CALENDAR_UPCOMING_DAYS", "7"))
+# How long fetched events are cached before a read is allowed again (seconds).
+CALENDAR_REFRESH_SECONDS = int(os.getenv("CALENDAR_REFRESH_SECONDS", "300"))
 
 # --- Photos ---
 # Optional: keep your pictures outside the repo by setting PHOTOS_DIR.

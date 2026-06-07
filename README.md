@@ -47,7 +47,9 @@ Set these in `.env` (copied from `.env.example`). Nothing personal is committed.
 | `PORT` | `8765` | Server port |
 | `CALENDAR_SOURCE` | `none` | `none`, `demo`, `ics`, or `apple` |
 | `CALENDAR_ICS_PATH` | _(empty)_ | `.ics` file path or https URL (used by `ics`) |
-| `CALENDAR_UPCOMING_DAYS` | `7` | Days ahead to show |
+| `CALENDAR_ICS_PATHS` | _(empty)_ | Several `.ics` paths at once, `:`-separated |
+| `CALENDAR_UPCOMING_DAYS` | `7` | Days ahead the Home card looks |
+| `CALENDAR_REFRESH_SECONDS` | `300` | How long calendar reads are cached |
 | `PHOTOS_DIR` | _(empty, uses `./photos`)_ | Folder to read photos from |
 | `PHOTO_INTERVAL_SECONDS` | `30` | Slideshow interval |
 | `BLUETOOTH_ALLOW_CONNECT` | `1` | Set `0` to disable connect/disconnect |
@@ -55,9 +57,9 @@ Set these in `.env` (copied from `.env.example`). Nothing personal is committed.
 
 ## Calendar setup
 
-Set `CALENDAR_SOURCE`, restart, and open the Calendar tab.
+Set `CALENDAR_SOURCE`, restart, and open the Calendar tab. The Calendar tab is a schedule grid with **Day** and **Week** views (Week is the default): a Today button, previous/next navigation, a time axis, rounded event blocks placed by time, and an all-day row. When more than one calendar has events, source-filter chips appear so you can hide or show each one.
 
-**Apple Calendar (`apple`) is the recommended option.** It reads every calendar shown in macOS Calendar.app, including Google accounts you have added there, and it handles recurring events.
+**Apple Calendar (`apple`) is the recommended option.** It reads every accessible calendar in macOS Calendar.app (including Google accounts you have added there) and handles recurring events.
 
 1. Set `CALENDAR_SOURCE=apple`.
 2. Restart. The first load triggers a macOS Automation prompt; approve it. If it does not appear or it errors, enable it under **System Settings > Privacy & Security > Automation > [your terminal app] > Calendar**. The permission attaches to whatever launches the server, so re-approve if you change launcher.
@@ -72,6 +74,7 @@ To include Google here, add the account in Calendar.app (**Settings > Accounts >
   CALENDAR_ICS_PATH=https://calendar.google.com/calendar/ical/.../basic.ics
   ```
 - Or point `CALENDAR_ICS_PATH` at a local `.ics` file you export.
+- For several calendars at once, list them in `CALENDAR_ICS_PATHS`, separated by `:` (each file's name becomes its source label).
 
 That URL is a credential: keep it in `.env` (gitignored) and never commit it. The built-in parser does not expand recurring events, so for recurring-heavy calendars prefer `apple`.
 

@@ -15,9 +15,23 @@ window.addEventListener('error', (event) => {
 // --- State ---
 let isLoggedIn    = false;
 let statsInterval = null;
+let btStatusInterval = null;
 let calendarCountdownInterval = null;
 let pinBuffer     = '';
 const MAX_PIN_LEN = 4;
+
+// Polling cadence. Kept modest so the app is cheap to leave running: psutil
+// stats are light; Bluetooth status triggers a (server-cached) system_profiler,
+// so it runs less often. Both pause while the browser tab is hidden.
+const STATS_POLL_MS = 15000;
+const BT_STATUS_POLL_MS = 30000;
+
+// Calendar view state
+let calView = 'week';
+let calAnchor = new Date();
+let calHidden = new Set();   // calendar names hidden via the source filter
+let calLoaded = false;
+let calLastData = null;
 
 // --- DOM refs ---
 const loginScreen    = document.getElementById('login-screen');
@@ -50,6 +64,15 @@ function init() {
     setupBluetooth();
     setupCalendar();
     setupPhotos();
+    setupVisibility();
+}
+
+// Pause background polling when the tab/screen isn't visible.
+function setupVisibility() {
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopStatsPolling();
+        else if (isLoggedIn) startStatsPolling();
+    });
 }
 
 // ============================================================
@@ -140,7 +163,7 @@ function showMainApp() {
     loginScreen.classList.add('hidden');
     mainScreen.classList.add('active');
     mainScreen.classList.remove('hidden');
-    loadCalendar();
+    loadHomeNextEvent();
     fetchServerStatus();
     startStatsPolling();
 }
@@ -331,6 +354,7 @@ function switchTab(tabId) {
 
     if (tabId === 'photos') { startPhotoShow(); } else { stopPhotoShow(); }
     if (tabId === 'bluetooth') { loadBluetooth(); }
+    if (tabId === 'calendar' && !calLoaded) { loadCalendarView(); }
 }
 window.switchTab = switchTab; // used by inline onclick
 
@@ -396,18 +420,21 @@ function setupClock() {
 // STATS POLLING
 // ============================================================
 function startStatsPolling() {
-    if (statsInterval) return;
-    fetchStats();
-    fetchBluetoothStatus();
-    statsInterval = setInterval(() => {
+    if (!statsInterval) {
         fetchStats();
+        statsInterval = setInterval(fetchStats, STATS_POLL_MS);
+    }
+    if (!btStatusInterval) {
         fetchBluetoothStatus();
-    }, 4000);
+        btStatusInterval = setInterval(fetchBluetoothStatus, BT_STATUS_POLL_MS);
+    }
 }
 
 function stopStatsPolling() {
     clearInterval(statsInterval);
     statsInterval = null;
+    clearInterval(btStatusInterval);
+    btStatusInterval = null;
 }
 
 async function fetchStats() {
@@ -468,97 +495,312 @@ async function fetchServerStatus() {
     setText('server-url', window.location.href);
 }
 
+// ============================================================
+// CALENDAR  (day / week schedule grid; Apple Calendar or ICS)
+// ============================================================
+const CAL_HOUR_PX = 48;        // pixel height of one hour
+const CAL_SCROLL_HOUR = 7;     // initial scroll position in the timed grid
+
 function setupCalendar() {
-    const btn = document.getElementById('cal-refresh-btn');
-    if (btn) btn.addEventListener('click', () => loadCalendar(true));
+    calView = localStorage.getItem('ff_cal_view') === 'day' ? 'day' : 'week';
+    syncViewButtons();
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+    on('cal-today',       () => { calAnchor = new Date(); loadCalendarView(); });
+    on('cal-prev',        () => { shiftAnchor(-1); loadCalendarView(); });
+    on('cal-next',        () => { shiftAnchor(1);  loadCalendarView(); });
+    on('cal-refresh-btn', () => loadCalendarView(true));
+    on('cal-view-day',    () => setCalView('day'));
+    on('cal-view-week',   () => setCalView('week'));
 }
 
-function showCalState(id) {
-    ['cal-loading', 'cal-empty', 'cal-disconnected', 'cal-error'].forEach(s => {
-        const el = document.getElementById(s);
-        if (el) el.classList.toggle('hidden', s !== id);
-    });
+function setCalView(v) {
+    if (calView === v) return;
+    calView = v;
+    localStorage.setItem('ff_cal_view', v);
+    syncViewButtons();
+    loadCalendarView();
 }
 
-async function loadCalendar(forceRefresh = false) {
-    showCalState('cal-loading');
+function syncViewButtons() {
+    document.querySelectorAll('.seg-btn[data-view]').forEach(b =>
+        b.classList.toggle('active', b.getAttribute('data-view') === calView));
+}
+
+function shiftAnchor(dir) {
+    const step = calView === 'week' ? 7 : 1;
+    calAnchor = new Date(calAnchor.getTime() + dir * step * 86400000);
+}
+
+function ymd(d) {
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function mondayOf(d) {
+    const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    r.setDate(r.getDate() - ((r.getDay() + 6) % 7));   // 0 = Monday
+    return r;
+}
+
+function calStatus(msg) {
+    const s = document.getElementById('cal-status');
+    const grid = document.getElementById('cal-grid');
+    if (msg) { s.textContent = msg; s.classList.remove('hidden'); grid.classList.add('hidden'); }
+    else { s.classList.add('hidden'); grid.classList.remove('hidden'); }
+}
+
+async function loadCalendarView(force = false) {
+    calStatus('Loading calendar...');
+    const url = calView === 'week'
+        ? `/api/calendar/week?start=${ymd(mondayOf(calAnchor))}`
+        : `/api/calendar/day?date=${ymd(calAnchor)}`;
     try {
-        // /refresh clears the server cache and returns the same upcoming payload.
-        const d = forceRefresh
-            ? await (await fetch('/api/calendar/refresh', { method: 'POST' })).json()
-            : await (await fetch('/api/calendar/upcoming')).json();
+        if (force) await fetch('/api/calendar/refresh', { method: 'POST' });
+        const d = await (await fetch(url)).json();
+        calLoaded = true;
+        calLastData = d;
         renderCalendar(d);
     } catch {
-        showCalState('cal-error');
-        setText('next-event', 'Failed to load');
-        setText('event-countdown', '');
+        calStatus('Unable to load the calendar.');
     }
 }
 
 function renderCalendar(d) {
-    const list = document.getElementById('calendar-list');
-    list.innerHTML = '';
-    setText('cal-source', d.source && d.source !== 'none' ? `Source: ${d.source}` : '');
+    calLastData = d;
+    const grid = document.getElementById('cal-grid');
+    grid.innerHTML = '';
+    updateCalRange();
 
-    if (!d.connected) {
-        showCalState('cal-disconnected');
-        const dc = document.getElementById('cal-disconnected');
-        if (dc && d.message) dc.textContent = d.message;
-        setText('next-event', 'Not connected');
-        setText('event-countdown', '');
-        return;
+    if (!d.connected) { renderSourceChips([]); calStatus(d.message || 'Calendar not connected.'); return; }
+
+    const days = [];
+    if (d.view === 'week') {
+        const start = mondayOf(calAnchor);
+        for (let i = 0; i < 7; i++) days.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+    } else {
+        days.push(new Date(calAnchor.getFullYear(), calAnchor.getMonth(), calAnchor.getDate()));
     }
 
-    if (!d.events || !d.events.length) {
-        showCalState('cal-empty');
-        setText('next-event', '—');
-        setText('event-countdown', '');
+    renderSourceChips(d.events || []);
+    const events = (d.events || []).filter(e => !calHidden.has(e.calendar));
+
+    if (!events.length) {
+        calStatus(d.view === 'week' ? 'No events this week.' : 'No events today.');
         return;
     }
+    calStatus(null);
 
-    showCalState(null); // hide all state messages; show the list
-    d.events.forEach(ev => {
-        const s = fmtTime(ev.start), e = fmtTime(ev.end);
-        const item = document.createElement('div');
-        item.className = 'agenda-item';
+    grid.appendChild(buildGrid(days, events));
+    const scroll = grid.querySelector('.cal-scroll');
+    if (scroll) scroll.scrollTop = CAL_SCROLL_HOUR * CAL_HOUR_PX;
+}
 
-        // textContent (not innerHTML) so event titles/locations can't inject markup.
-        const title = document.createElement('div');
-        title.className = 'ev-title';
-        title.textContent = ev.title || '';
+function updateCalRange() {
+    const label = document.getElementById('cal-range');
+    if (!label) return;
+    if (calView === 'week') {
+        const s = mondayOf(calAnchor);
+        const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6);
+        const opt = { month: 'short', day: 'numeric' };
+        const right = s.getMonth() === e.getMonth() ? e.getDate() : e.toLocaleDateString([], opt);
+        label.textContent = `${s.toLocaleDateString([], opt)} – ${right}, ${e.getFullYear()}`;
+    } else {
+        label.textContent = calAnchor.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+}
 
-        const timeEl = document.createElement('div');
-        timeEl.className = 'ev-time';
-        timeEl.textContent = `${s} – ${e}`;
+function calHue(name) {
+    let h = 0;
+    const s = name || '';
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    return h;
+}
 
-        item.appendChild(title);
-        item.appendChild(timeEl);
+function renderSourceChips(events) {
+    const wrap = document.getElementById('cal-sources');
+    if (!wrap) return;
+    const names = [];
+    const seen = new Set();
+    events.forEach(e => { if (e.calendar && !seen.has(e.calendar)) { seen.add(e.calendar); names.push(e.calendar); } });
+    if (names.length <= 1) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = '';
+    names.forEach(n => {
+        const chip = el('button', 'cal-chip' + (calHidden.has(n) ? ' off' : ''));
+        chip.style.setProperty('--chip-hue', calHue(n));
+        chip.appendChild(el('span', 'cal-chip-dot'));
+        chip.appendChild(el('span', '', n));
+        chip.addEventListener('click', () => {
+            if (calHidden.has(n)) calHidden.delete(n); else calHidden.add(n);
+            renderCalendar(calLastData);
+        });
+        wrap.appendChild(chip);
+    });
+}
 
-        if (ev.location) {
-            const loc = document.createElement('div');
-            loc.className = 'ev-loc';
-            loc.textContent = `📍 ${ev.location}`;
-            item.appendChild(loc);
-        }
-        list.appendChild(item);
+function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+}
+
+function hourLabel(h) {
+    if (h === 0 || h === 24) return '';
+    const ampm = h < 12 ? 'AM' : 'PM';
+    return `${h % 12 === 0 ? 12 : h % 12} ${ampm}`;
+}
+
+function buildGrid(days, events) {
+    const inner = el('div', 'cal-grid-inner');
+    inner.style.setProperty('--cal-cols', days.length);
+    const today = ymd(new Date());
+
+    // Header: corner + day labels
+    const head = el('div', 'cal-head');
+    head.appendChild(el('div', 'cal-corner'));
+    days.forEach(day => {
+        const h = el('div', 'cal-dayhead' + (ymd(day) === today ? ' today' : ''));
+        h.appendChild(el('div', 'cal-dayhead-wd', day.toLocaleDateString([], { weekday: 'short' })));
+        h.appendChild(el('div', 'cal-dayhead-dn', String(day.getDate())));
+        head.appendChild(h);
+    });
+    inner.appendChild(head);
+
+    // All-day row (only when there are all-day / multi-day events)
+    const allDay = days.map(day => allDayEventsFor(day, events));
+    if (allDay.some(list => list.length)) {
+        const row = el('div', 'cal-allday');
+        row.appendChild(el('div', 'cal-allday-label', 'all-day'));
+        days.forEach((day, i) => {
+            const cell = el('div', 'cal-allday-cell');
+            allDay[i].forEach(ev => cell.appendChild(eventChip(ev)));
+            row.appendChild(cell);
+        });
+        inner.appendChild(row);
+    }
+
+    // Scrollable timed grid
+    const scroll = el('div', 'cal-scroll');
+    const body = el('div', 'cal-body');
+    body.style.height = (24 * CAL_HOUR_PX) + 'px';
+
+    const axis = el('div', 'cal-axis');
+    for (let h = 0; h <= 24; h++) {
+        const lab = el('div', 'cal-axis-h', hourLabel(h));
+        lab.style.top = (h * CAL_HOUR_PX) + 'px';
+        axis.appendChild(lab);
+    }
+    body.appendChild(axis);
+
+    days.forEach(day => {
+        const col = el('div', 'cal-col' + (ymd(day) === today ? ' today' : ''));
+        layoutTimed(day, events).forEach(b => col.appendChild(b));
+        body.appendChild(col);
     });
 
-    // Home tab: next event + live countdown.
-    setText('next-event', d.events[0].title);
-    const nextStart = new Date(d.events[0].start);
-    const tickCountdown = () => {
-        const diff = nextStart - new Date();
-        if (diff > 0) {
-            const h = Math.floor(diff / 3600000);
-            const m = Math.floor((diff % 3600000) / 60000);
-            setText('event-countdown', 'In ' + (h > 0 ? h + 'h ' : '') + m + 'm');
-        } else {
-            setText('event-countdown', 'Now');
+    scroll.appendChild(body);
+    inner.appendChild(scroll);
+    return inner;
+}
+
+function allDayEventsFor(day, events) {
+    const ds = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const de = new Date(ds.getTime() + 86400000);
+    return events.filter(ev => {
+        const es = new Date(ev.start), ee = new Date(ev.end);
+        if (ee <= ds || es >= de) return false;
+        return ev.all_day || (es <= ds && ee >= de);
+    });
+}
+
+function eventChip(ev) {
+    const c = el('div', 'cal-chip-ev', ev.title);
+    c.style.setProperty('--ev-hue', calHue(ev.calendar));
+    if (ev.location) c.title = ev.location;
+    return c;
+}
+
+// Place timed events for one day, splitting width across overlapping events.
+function layoutTimed(day, events) {
+    const ds = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const de = new Date(ds.getTime() + 86400000);
+    const items = [];
+    events.forEach(ev => {
+        const es = new Date(ev.start), ee = new Date(ev.end);
+        if (ee <= ds || es >= de) return;
+        if (ev.all_day || (es <= ds && ee >= de)) return;   // in the all-day row
+        const startH = Math.max(0, (es - ds) / 3600000);
+        const endH = Math.min(24, (ee - ds) / 3600000);
+        items.push({ ev, startH, endH: Math.max(endH, startH + 0.25) });
+    });
+    items.sort((a, b) => a.startH - b.startH || a.endH - b.endH);
+
+    const blocks = [];
+    let i = 0;
+    while (i < items.length) {
+        const cluster = [items[i]];
+        let clusterEnd = items[i].endH, j = i + 1;
+        while (j < items.length && items[j].startH < clusterEnd) {
+            cluster.push(items[j]);
+            clusterEnd = Math.max(clusterEnd, items[j].endH);
+            j++;
         }
-    };
-    tickCountdown();
-    clearInterval(calendarCountdownInterval);   // don't stack intervals on refresh
-    calendarCountdownInterval = setInterval(tickCountdown, 60000);
+        const cols = [];
+        cluster.forEach(it => {
+            let placed = false;
+            for (let c = 0; c < cols.length; c++) {
+                if (it.startH >= cols[c] - 1e-6) { it.col = c; cols[c] = it.endH; placed = true; break; }
+            }
+            if (!placed) { it.col = cols.length; cols.push(it.endH); }
+        });
+        cluster.forEach(it => blocks.push(timedBlock(it, cols.length)));
+        i = j;
+    }
+    return blocks;
+}
+
+function timedBlock(it, nCols) {
+    const ev = it.ev;
+    const b = el('div', 'cal-event');
+    b.style.setProperty('--ev-hue', calHue(ev.calendar));
+    b.style.top = (it.startH * CAL_HOUR_PX) + 'px';
+    b.style.height = Math.max(16, (it.endH - it.startH) * CAL_HOUR_PX - 2) + 'px';
+    const w = 100 / nCols;
+    b.style.left = (it.col * w) + '%';
+    b.style.width = `calc(${w}% - 3px)`;
+    b.appendChild(el('div', 'cal-event-title', ev.title));
+    b.appendChild(el('div', 'cal-event-time', `${fmtTime(ev.start)} – ${fmtTime(ev.end)}`));
+    if (ev.location) b.title = ev.location;
+    return b;
+}
+
+// Home tab: show the next upcoming event with a live countdown.
+async function loadHomeNextEvent() {
+    try {
+        const d = await (await fetch('/api/calendar/upcoming')).json();
+        if (!d.connected) { setText('next-event', 'Not connected'); setText('event-countdown', ''); return; }
+        if (!d.events || !d.events.length) { setText('next-event', 'No upcoming events'); setText('event-countdown', ''); return; }
+        const ev = d.events[0];
+        setText('next-event', ev.title);
+        const nextStart = new Date(ev.start);
+        const tick = () => {
+            const diff = nextStart - new Date();
+            if (diff > 0) {
+                const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000);
+                setText('event-countdown', 'In ' + (h > 0 ? h + 'h ' : '') + m + 'm');
+            } else {
+                setText('event-countdown', 'Now');
+            }
+        };
+        tick();
+        clearInterval(calendarCountdownInterval);
+        calendarCountdownInterval = setInterval(tick, 60000);
+    } catch {
+        setText('next-event', 'Failed to load');
+        setText('event-countdown', '');
+    }
 }
 
 // ============================================================
@@ -993,11 +1235,11 @@ function updatePhotoUi() {
     badge('badge-locked',  !!photoLockedName);
 
     const pp = document.getElementById('ph-playpause');
-    if (pp) pp.textContent = photoPaused ? '▶ Resume' : '⏸ Pause';
+    if (pp) pp.textContent = photoPaused ? '▶' : '⏸';
     const sh = document.getElementById('ph-shuffle');
     if (sh) sh.classList.toggle('active', photoShuffle);
     const lk = document.getElementById('ph-lock');
-    if (lk) { lk.textContent = photoLockedName ? '🔓 Unlock' : '🔒 Lock'; lk.classList.toggle('active', !!photoLockedName); }
+    if (lk) { lk.textContent = photoLockedName ? '🔓' : '🔒'; lk.classList.toggle('active', !!photoLockedName); }
 
     const counter = document.getElementById('photo-counter');
     if (counter) counter.textContent = photoOrder.length ? `${photoPos + 1} / ${photoOrder.length}` : '0 / 0';

@@ -2,33 +2,52 @@
 
     none   nothing configured (default); the UI shows "not connected"
     demo   built-in placeholder events, handy for testing the UI
-    ics    a local .ics file or an https URL (CALENDAR_ICS_PATH)
-    apple  Apple Calendar via osascript/JXA (needs Automation permission)
+    ics    one or more local .ics files, or an https URL (CALENDAR_ICS_PATH /
+           CALENDAR_ICS_PATHS)
+    apple  Apple Calendar via osascript/JXA, reading every accessible calendar
+           (needs Automation permission)
 
-Results are cached for a minute. Event details are never logged.
+Events for the surrounding window are fetched once and cached, so day/week
+navigation filters in memory instead of re-running osascript. Refreshes are the
+only thing that forces a new read. Event details are never logged.
 """
 
+import hashlib
 import json
+import os
 import platform
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from backend.config_loader import (
     CALENDAR_SOURCE,
     CALENDAR_ICS_PATH,
+    CALENDAR_ICS_PATHS,
     CALENDAR_UPCOMING_DAYS,
+    CALENDAR_REFRESH_SECONDS,
 )
 from backend.calendar_stub import get_placeholder_events
 
-_CACHE_TTL_SECONDS = 60
-_cache = {"ts": 0.0, "payload": None}
+# One in-memory window of events, plus the metadata for the current source.
+_cache = {"start": None, "end": None, "events": None, "ts": 0.0, "meta": {}, "full": False}
+# Serialise expensive reads so two requests never spawn osascript at once.
+_fetch_lock = threading.Lock()
 
+
+def _ttl() -> int:
+    try:
+        return max(30, int(CALENDAR_REFRESH_SECONDS))
+    except (TypeError, ValueError):
+        return 300
+
+
+# --- date helpers ---
 
 def _to_local_naive(dt: datetime) -> datetime:
-    """Drop tz info (converting to local) so every comparison is naive-vs-naive."""
     if dt.tzinfo is not None:
         dt = dt.astimezone().replace(tzinfo=None)
     return dt
@@ -46,22 +65,43 @@ def _parse_iso(value: str):
         return None
 
 
+def _parse_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    except (ValueError, AttributeError):
+        return None
+
+
+def _monday(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
 def _shape(events: list) -> list:
-    """Normalize raw events to a sorted, serialisable list."""
+    """Normalize raw source events into the API model, sorted by start."""
     cleaned = []
     for ev in events:
         start = _parse_iso(ev.get("start", ""))
         if start is None:
             continue
         end = _parse_iso(ev.get("end", "")) or start
+        title = (ev.get("title") or "Untitled").strip()
+        name = (ev.get("calendar") or "").strip()
+        uid = str(ev.get("uid") or ev.get("id") or "").strip()
+        eid = uid or hashlib.sha1(f"{title}|{start.isoformat()}".encode("utf-8")).hexdigest()[:12]
         cleaned.append(
             {
-                "id": str(ev.get("id", "")) or None,
-                "title": (ev.get("title") or "Untitled").strip(),
+                "id": eid,
+                "title": title,
                 "start": start.isoformat(),
                 "end": end.isoformat(),
+                "all_day": bool(ev.get("all_day") or ev.get("allday")),
                 "location": (ev.get("location") or "").strip(),
+                "calendar": name,
+                "calendar_id": hashlib.sha1(name.encode("utf-8")).hexdigest()[:8] if name else "",
                 "_start_dt": start,
+                "_end_dt": end,
             }
         )
     cleaned.sort(key=lambda e: e["_start_dt"])
@@ -70,26 +110,46 @@ def _shape(events: list) -> list:
 
 # --- ICS source ---
 
+def _ics_sources() -> list:
+    paths = []
+    for p in (CALENDAR_ICS_PATHS or "").split(os.pathsep):
+        p = p.strip()
+        if p:
+            paths.append(p)
+    single = (CALENDAR_ICS_PATH or "").strip()
+    if single:
+        paths.append(single)
+    seen, out = set(), []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+def _source_label(src: str) -> str:
+    if src.lower().startswith(("http://", "https://")):
+        return "Web"  # don't echo the (secret) URL
+    base = os.path.basename(src)
+    return os.path.splitext(base)[0] or "ICS"
+
+
 def _ics_datetime(prop: str, value: str):
     value = value.strip()
-    params = prop.upper()
+    is_date = "VALUE=DATE" in prop.upper() and "T" not in value
     try:
-        if "VALUE=DATE" in params and "T" not in value:
-            return datetime.strptime(value, "%Y%m%d").isoformat()
+        if is_date:
+            return datetime.strptime(value, "%Y%m%d").isoformat(), True
         if value.endswith("Z"):
-            return (
-                datetime.strptime(value, "%Y%m%dT%H%M%SZ")
-                .replace(tzinfo=timezone.utc)
-                .isoformat()
-            )
-        return datetime.strptime(value, "%Y%m%dT%H%M%S").isoformat()
+            dt = datetime.strptime(value, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+            return dt.isoformat(), False
+        return datetime.strptime(value, "%Y%m%dT%H%M%S").isoformat(), False
     except ValueError:
-        return None
+        return None, False
 
 
 def _read_ics_text(source: str) -> str:
-    # A URL lets you use the Google "secret address in iCal format". That URL is
-    # a credential, so it lives in .env, never in the repo.
+    # A URL lets you use the Apple/Google "secret iCal address". Keep it in .env.
     if source.lower().startswith(("http://", "https://")):
         req = urllib.request.Request(source, headers={"User-Agent": "FireFrame"})
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -125,40 +185,50 @@ def _parse_ics(source: str) -> list:
             elif name == "LOCATION":
                 cur["location"] = val.strip()
             elif name == "UID":
-                cur["id"] = val.strip()
+                cur["uid"] = val.strip()
             elif name == "DTSTART":
-                cur["start"] = _ics_datetime(prop, val)
+                iso, all_day = _ics_datetime(prop, val)
+                cur["start"] = iso
+                if all_day:
+                    cur["all_day"] = True
             elif name == "DTEND":
-                cur["end"] = _ics_datetime(prop, val)
+                cur["end"], _ = _ics_datetime(prop, val)
     return events
 
 
 # --- Apple Calendar source (JXA) ---
+# Reads every accessible calendar and keeps events that overlap [start, end):
+# startDate < end AND endDate > start. That overlap test (instead of a
+# startDate-only "greater than") is what lets all-day and ongoing events show.
 
 _JXA_TEMPLATE = """
 (() => {
   const Cal = Application("Calendar");
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(start.getTime() + %d * 86400000);
+  const start = new Date(__START__);
+  const end = new Date(__END__);
   const out = [];
   let cals;
   try { cals = Cal.calendars(); } catch (e) { return "[]"; }
   for (let i = 0; i < cals.length; i++) {
+    let name = "";
+    try { name = cals[i].name(); } catch (e) {}
     let evs;
     try {
       evs = cals[i].events.whose({ _and: [
-        { startDate: { _greaterThan: start } },
-        { startDate: { _lessThan: end } }
+        { startDate: { _lessThan: end } },
+        { endDate: { _greaterThan: start } }
       ]})();
     } catch (e) { continue; }
     for (let j = 0; j < evs.length; j++) {
       try {
         out.push({
+          uid: evs[j].uid(),
           title: evs[j].summary(),
           start: evs[j].startDate().toISOString(),
           end: evs[j].endDate().toISOString(),
-          location: evs[j].location() || ""
+          allday: evs[j].alldayEvent(),
+          location: evs[j].location() || "",
+          calendar: name
         });
       } catch (e) {}
     }
@@ -168,10 +238,12 @@ _JXA_TEMPLATE = """
 """
 
 
-def _query_apple_calendar() -> list:
-    days = max(1, int(CALENDAR_UPCOMING_DAYS))
+def _query_apple_calendar(start_dt: datetime, end_dt: datetime) -> list:
+    start_ms = int(start_dt.timestamp() * 1000)
+    end_ms = int(end_dt.timestamp() * 1000)
+    script = _JXA_TEMPLATE.replace("__START__", str(start_ms)).replace("__END__", str(end_ms))
     proc = subprocess.run(
-        ["osascript", "-l", "JavaScript", "-e", _JXA_TEMPLATE % days],
+        ["osascript", "-l", "JavaScript", "-e", script],
         capture_output=True,
         timeout=30,
         text=True,
@@ -181,97 +253,145 @@ def _query_apple_calendar() -> list:
     return json.loads(proc.stdout)
 
 
-# --- Load + cache ---
+# --- window load + cache ---
 
-def _load() -> dict:
+def _load_window(win_start: datetime, win_end: datetime) -> dict:
     source = (CALENDAR_SOURCE or "none").strip().lower()
 
     if source == "demo":
-        return {"connected": True, "source": "demo", "error": None,
-                "events": _shape(get_placeholder_events())}
+        evs = get_placeholder_events()
+        for e in evs:
+            e["calendar"] = "Demo"
+        return {"connected": True, "source": "demo", "error": None, "full": True,
+                "events": _shape(evs)}
 
     if source == "ics":
-        if not CALENDAR_ICS_PATH:
-            return {"connected": False, "source": "ics", "error": "no_path",
-                    "events": [], "message": "CALENDAR_ICS_PATH is not set."}
+        srcs = _ics_sources()
+        if not srcs:
+            return {"connected": False, "source": "ics", "error": "no_path", "full": True,
+                    "events": [], "message": "No ICS path configured (set CALENDAR_ICS_PATH)."}
         try:
-            return {"connected": True, "source": "ics", "error": None,
-                    "events": _shape(_parse_ics(CALENDAR_ICS_PATH))}
+            collected = []
+            for src in srcs:
+                label = _source_label(src)
+                for ev in _parse_ics(src):
+                    ev["calendar"] = label
+                    collected.append(ev)
+            return {"connected": True, "source": "ics", "error": None, "full": True,
+                    "events": _shape(collected)}
         except FileNotFoundError:
-            return {"connected": False, "source": "ics", "error": "file_not_found",
-                    "events": [], "message": "ICS file not found."}
+            return {"connected": False, "source": "ics", "error": "file_not_found", "full": True,
+                    "events": [], "message": "An ICS file was not found."}
         except urllib.error.URLError:
-            return {"connected": False, "source": "ics", "error": "fetch_failed",
-                    "events": [], "message": "Could not fetch the calendar URL. Check CALENDAR_ICS_PATH."}
+            return {"connected": False, "source": "ics", "error": "fetch_failed", "full": True,
+                    "events": [], "message": "Could not fetch the calendar URL."}
         except Exception:
-            return {"connected": False, "source": "ics", "error": "parse_failed",
-                    "events": [], "message": "Could not read the ICS source."}
+            return {"connected": False, "source": "ics", "error": "parse_failed", "full": True,
+                    "events": [], "message": "Could not read an ICS source."}
 
     if source == "apple":
         if platform.system() != "Darwin":
-            return {"connected": False, "source": "apple", "error": "not_macos",
+            return {"connected": False, "source": "apple", "error": "not_macos", "full": False,
                     "events": [], "message": "Apple Calendar is only available on macOS."}
         try:
-            return {"connected": True, "source": "apple", "error": None,
-                    "events": _shape(_query_apple_calendar())}
+            return {"connected": True, "source": "apple", "error": None, "full": False,
+                    "events": _shape(_query_apple_calendar(win_start, win_end))}
         except subprocess.TimeoutExpired:
-            return {"connected": False, "source": "apple", "error": "timeout",
+            return {"connected": False, "source": "apple", "error": "timeout", "full": False,
                     "events": [], "message": "Apple Calendar query timed out."}
         except FileNotFoundError:
-            return {"connected": False, "source": "apple", "error": "no_osascript",
+            return {"connected": False, "source": "apple", "error": "no_osascript", "full": False,
                     "events": [], "message": "osascript is not available."}
         except Exception:
-            return {"connected": False, "source": "apple", "error": "unavailable",
+            return {"connected": False, "source": "apple", "error": "unavailable", "full": False,
                     "events": [],
-                    "message": "Could not read Apple Calendar. Grant Automation "
-                               "permission (System Settings > Privacy & Security > "
-                               "Automation) or use an ICS file."}
+                    "message": "Could not read Apple Calendar. Grant Automation permission "
+                               "(System Settings > Privacy & Security > Automation) or use ICS."}
 
-    return {"connected": False, "source": "none", "error": None, "events": [],
+    return {"connected": False, "source": "none", "error": None, "full": True, "events": [],
             "message": "Calendar not connected. Set CALENDAR_SOURCE to enable it."}
 
 
-def _cached() -> dict:
+def _covers(req_start: datetime, req_end: datetime) -> bool:
+    if _cache["full"]:
+        return True
+    return (_cache["start"] is not None
+            and _cache["start"] <= req_start and req_end <= _cache["end"])
+
+
+def _ensure(req_start: datetime, req_end: datetime) -> None:
+    """Make sure the cache holds a fresh window covering [req_start, req_end)."""
     now = time.time()
-    if _cache["payload"] is None or (now - _cache["ts"]) > _CACHE_TTL_SECONDS:
-        _cache["payload"] = _load()
-        _cache["ts"] = now
-    return _cache["payload"]
+    if _cache["events"] is not None and (now - _cache["ts"]) < _ttl() and _covers(req_start, req_end):
+        return
+    with _fetch_lock:
+        now = time.time()
+        if _cache["events"] is not None and (now - _cache["ts"]) < _ttl() and _covers(req_start, req_end):
+            return  # another request filled it while we waited
+        pad = timedelta(days=7)  # padding so adjacent day/week navigation stays in cache
+        win_start, win_end = req_start - pad, req_end + pad
+        data = _load_window(win_start, win_end)
+        _cache.update(
+            start=win_start, end=win_end, events=data["events"], ts=time.time(),
+            full=data.get("full", False),
+            meta={k: data.get(k) for k in ("connected", "source", "error", "message")},
+        )
+
+
+def _overlap(events: list, a: datetime, b: datetime) -> list:
+    return [e for e in events if e["_start_dt"] < b and e["_end_dt"] > a]
 
 
 def _public(events: list) -> list:
     return [{k: v for k, v in e.items() if not k.startswith("_")} for e in events]
 
 
-def get_upcoming() -> dict:
-    data = _cached()
-    days = max(1, int(CALENDAR_UPCOMING_DAYS))
-    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    horizon = midnight + timedelta(days=days)
-    upcoming = [e for e in data["events"] if midnight <= e["_start_dt"] <= horizon]
-    return {
-        "connected": data["connected"],
-        "source": data["source"],
-        "error": data.get("error"),
-        "message": data.get("message"),
-        "events": _public(upcoming[:25]),
-    }
+# --- public API ---
+
+def get_day(date_str=None) -> dict:
+    d = _parse_date(date_str) or date.today()
+    a = datetime(d.year, d.month, d.day)
+    b = a + timedelta(days=1)
+    _ensure(a, b)
+    events = _overlap(_cache["events"], a, b)
+    return {**_cache["meta"], "view": "day", "date": d.isoformat(), "events": _public(events)}
+
+
+def get_week(start_str=None) -> dict:
+    d = _parse_date(start_str) or _monday(date.today())
+    a = datetime(d.year, d.month, d.day)
+    b = a + timedelta(days=7)
+    _ensure(a, b)
+    events = _overlap(_cache["events"], a, b)
+    return {**_cache["meta"], "view": "week", "start": d.isoformat(),
+            "end": (d + timedelta(days=6)).isoformat(), "events": _public(events)}
 
 
 def get_today() -> dict:
-    data = _cached()
-    today = datetime.now().date()
-    todays = [e for e in data["events"] if e["_start_dt"].date() == today]
-    return {
-        "connected": data["connected"],
-        "source": data["source"],
-        "error": data.get("error"),
-        "message": data.get("message"),
-        "events": _public(todays),
-    }
+    return get_day(None)
+
+
+def get_upcoming() -> dict:
+    days = max(1, int(CALENDAR_UPCOMING_DAYS))
+    a = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    b = a + timedelta(days=days)
+    _ensure(a, b)
+    events = sorted(_overlap(_cache["events"], a, b), key=lambda e: e["_start_dt"])[:25]
+    return {**_cache["meta"], "events": _public(events)}
+
+
+def get_sources() -> dict:
+    a = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    _ensure(a, a + timedelta(days=max(1, int(CALENDAR_UPCOMING_DAYS))))
+    seen, names = set(), []
+    for e in _cache["events"] or []:
+        n = e["calendar"]
+        if n and n not in seen:
+            seen.add(n)
+            names.append({"name": n, "id": e["calendar_id"]})
+    return {**_cache["meta"], "sources": names}
 
 
 def refresh_calendar() -> dict:
-    _cache["payload"] = None
-    _cache["ts"] = 0.0
+    _cache.update(start=None, end=None, events=None, ts=0.0, full=False)
     return get_upcoming()

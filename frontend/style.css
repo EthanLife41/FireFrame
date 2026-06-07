@@ -853,66 +853,258 @@ html, body {
 .bt-row .btn { flex-shrink: 0; min-width: 124px; }
 
 /* ===================================================
-   PHOTOS: badges + control bar
+   PHOTOS: quiet status dots + low-profile controls
    =================================================== */
 .photo-badges {
     position: absolute;
     top: 0.9rem;
     left: 0.9rem;
     display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
+    gap: 0.35rem;
     z-index: 5;
 }
 .photo-badge {
-    font-size: 0.74rem;
-    font-weight: 700;
-    color: #fff;
-    background: rgba(0, 0, 0, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    padding: 0.25rem 0.6rem;
-    border-radius: var(--pill);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    font-size: 0.8rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.40);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    opacity: 0.85;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 #badge-locked { background: rgba(255, 159, 10, 0.30); border-color: rgba(255, 159, 10, 0.5); }
 #badge-paused { background: rgba(255, 69, 58, 0.30);  border-color: rgba(255, 69, 58, 0.5); }
 
-/* Clock sits top-right in the photo tab (no longer in a HUD row) */
 .photo-tab .photo-clock { position: absolute; top: 0.9rem; right: 0.9rem; z-index: 5; }
 
+/* Small, dim control cluster in the corner so the photo stays the focus.
+   It brightens on hover/focus; on touch it stays visible but understated. */
 .photo-controls {
     position: absolute;
-    left: 50%;
+    right: 0.9rem;
     bottom: 0.9rem;
-    transform: translateX(-50%);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    justify-content: center;
-    max-width: calc(100% - 1.4rem);
-    background: rgba(0, 0, 0, 0.42);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 0.5rem 0.7rem;
-    border-radius: var(--radius-lg);
-    backdrop-filter: var(--blur);
-    -webkit-backdrop-filter: var(--blur);
+    gap: 0.25rem;
+    padding: 0.25rem 0.35rem;
+    border-radius: var(--pill);
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    opacity: 0.55;
+    transition: opacity 0.2s ease;
     z-index: 6;
 }
-.photo-controls .btn { min-height: 44px; }
+.photo-controls:hover, .photo-controls:focus-within { opacity: 1; }
+.ph-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 1rem;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+.ph-btn:active { transform: scale(0.9); }
+.ph-btn.active { background: var(--primary); }
+@media (hover: hover) and (pointer: fine) {
+    .ph-btn:hover { background: rgba(255, 255, 255, 0.15); }
+}
 .photo-counter {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.75);
     font-variant-numeric: tabular-nums;
-    padding: 0 0.3rem;
+    padding: 0 0.4rem;
 }
 
-/* Toggle-on look for shuffle / lock pills */
-.small-btn.active {
-    background: var(--primary);
+/* ===================================================
+   CALENDAR: day/week schedule grid
+   =================================================== */
+#tab-calendar.cal-tab.active {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.cal-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+}
+.cal-tb-group { display: flex; align-items: center; gap: 0.5rem; }
+.cal-range { font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; padding-left: 0.3rem; }
+.cal-nav { min-width: 44px; font-size: 1.2rem; padding-left: 0; padding-right: 0; }
+
+.seg {
+    display: inline-flex;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--pill);
+    padding: 2px;
+}
+.seg-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.4rem 0.95rem;
+    min-height: 36px;
+    border-radius: var(--pill);
+    cursor: pointer;
+}
+.seg-btn.active { background: var(--primary); color: #fff; }
+
+.cal-sources { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.cal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--pill);
+    padding: 0.3rem 0.7rem;
+    min-height: 34px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.cal-chip.off { opacity: 0.4; }
+.cal-chip-dot { width: 10px; height: 10px; border-radius: 50%; background: hsl(var(--chip-hue, 210), 70%, 60%); }
+
+.cal-grid { flex: 1; min-height: 0; display: flex; }
+.cal-grid-inner {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    --axis-w: 52px;
+    --hour-px: 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.cal-head, .cal-allday, .cal-body {
+    display: grid;
+    grid-template-columns: var(--axis-w) repeat(var(--cal-cols), 1fr);
+}
+.cal-head { border-bottom: 1px solid var(--border); }
+.cal-dayhead { text-align: center; padding: 0.45rem 0.2rem; border-left: 1px solid var(--border); }
+.cal-dayhead-wd { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.cal-dayhead-dn { font-size: 1.25rem; font-weight: 700; }
+.cal-dayhead.today .cal-dayhead-wd { color: var(--primary); }
+.cal-dayhead.today .cal-dayhead-dn {
     color: #fff;
-    border-color: transparent;
+    background: var(--primary);
+    width: 1.9rem;
+    height: 1.9rem;
+    line-height: 1.9rem;
+    border-radius: 50%;
+    margin: 0.1rem auto 0;
+}
+
+.cal-allday {
+    border-bottom: 1px solid var(--border);
+    min-height: 30px;
+    max-height: 88px;
+    overflow-y: auto;
+}
+.cal-allday-label {
+    font-size: 0.6rem;
+    color: var(--muted-2);
+    text-transform: uppercase;
+    align-self: center;
+    text-align: right;
+    padding-right: 6px;
+}
+.cal-allday-cell {
+    border-left: 1px solid var(--border);
+    padding: 3px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.cal-chip-ev {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: hsla(var(--ev-hue, 210), 65%, 55%, 0.28);
+    border-left: 3px solid hsl(var(--ev-hue, 210), 70%, 60%);
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cal-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.cal-body { position: relative; }
+.cal-axis { position: relative; }
+.cal-axis-h {
+    position: absolute;
+    right: 6px;
+    transform: translateY(-50%);
+    font-size: 0.66rem;
+    color: var(--muted-2);
+    font-variant-numeric: tabular-nums;
+}
+.cal-col {
+    position: relative;
+    border-left: 1px solid var(--border);
+    background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(var(--hour-px) - 1px),
+        var(--border) calc(var(--hour-px) - 1px),
+        var(--border) var(--hour-px)
+    );
+}
+.cal-col.today { background-color: rgba(10, 132, 255, 0.06); }
+
+.cal-event {
+    position: absolute;
+    overflow: hidden;
+    padding: 3px 6px;
+    border-radius: 8px;
+    background: hsla(var(--ev-hue, 210), 65%, 52%, 0.32);
+    border: 1px solid hsla(var(--ev-hue, 210), 70%, 60%, 0.5);
+    border-left: 3px solid hsl(var(--ev-hue, 210), 72%, 62%);
+    box-shadow: var(--glass-edge);
+}
+.cal-event-title {
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cal-event-time {
+    font-size: 0.66rem;
+    color: var(--muted);
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* ===================================================

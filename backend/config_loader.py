@@ -29,7 +29,9 @@ _DEFAULTS = {
     # Calendar
     "CALENDAR_SOURCE": os.getenv("CALENDAR_SOURCE", "none"),
     "CALENDAR_ICS_PATH": os.getenv("CALENDAR_ICS_PATH", ""),
+    "CALENDAR_ICS_PATHS": os.getenv("CALENDAR_ICS_PATHS", ""),
     "CALENDAR_UPCOMING_DAYS": int(os.getenv("CALENDAR_UPCOMING_DAYS", "7")),
+    "CALENDAR_REFRESH_SECONDS": int(os.getenv("CALENDAR_REFRESH_SECONDS", "300")),
     # Photos
     "PHOTOS_DIR_OVERRIDE": os.getenv("PHOTOS_DIR", ""),
     "PHOTO_INTERVAL_SECONDS": int(os.getenv("PHOTO_INTERVAL_SECONDS", "30")),

@@ -168,24 +168,26 @@
             </div>
         </div>
 
-        <!-- CALENDAR TAB -->
-        <div id="tab-calendar" class="tab-content">
-            <div class="settings-scroll">
-                <div class="card cal-card">
-                    <div class="cal-card-head">
-                        <div>
-                            <div class="card-label">Today &amp; Upcoming</div>
-                            <div id="cal-source" class="bt-state-text"></div>
-                        </div>
-                        <button class="btn small-btn" id="cal-refresh-btn">⟳ Refresh</button>
+        <!-- CALENDAR TAB: day/week schedule grid -->
+        <div id="tab-calendar" class="tab-content cal-tab">
+            <div class="cal-toolbar">
+                <div class="cal-tb-group">
+                    <button class="btn small-btn" id="cal-today">Today</button>
+                    <button class="btn small-btn cal-nav" id="cal-prev" aria-label="Previous">‹</button>
+                    <button class="btn small-btn cal-nav" id="cal-next" aria-label="Next">›</button>
+                    <div id="cal-range" class="cal-range">—</div>
+                </div>
+                <div class="cal-tb-group">
+                    <div class="seg" role="group" aria-label="View">
+                        <button class="seg-btn" id="cal-view-day" data-view="day">Day</button>
+                        <button class="seg-btn active" id="cal-view-week" data-view="week">Week</button>
                     </div>
-                    <div id="cal-loading" class="cal-state">Loading calendar...</div>
-                    <div id="cal-empty" class="cal-state hidden">No events today.</div>
-                    <div id="cal-disconnected" class="cal-state hidden">Calendar not connected. See the README to enable it.</div>
-                    <div id="cal-error" class="cal-state hidden">Unable to load the calendar.</div>
-                    <div id="calendar-list" class="agenda-list"></div>
+                    <button class="btn small-btn" id="cal-refresh-btn" aria-label="Refresh calendar">⟳</button>
                 </div>
             </div>
+            <div id="cal-sources" class="cal-sources hidden"></div>
+            <div id="cal-status" class="cal-state hidden">Loading calendar...</div>
+            <div id="cal-grid" class="cal-grid"></div>
         </div>
 
         <!-- PHOTOS TAB -->
@@ -202,24 +204,24 @@
                 </div>
             </div>
 
-            <!-- State badges (top-left) -->
+            <!-- Quiet status dots (top-left), only visible when active -->
             <div class="photo-badges">
-                <span id="badge-shuffle" class="photo-badge hidden">🔀 Shuffle</span>
-                <span id="badge-paused" class="photo-badge hidden">⏸ Paused</span>
-                <span id="badge-locked" class="photo-badge hidden">🔒 Locked</span>
+                <span id="badge-shuffle" class="photo-badge hidden">🔀</span>
+                <span id="badge-paused" class="photo-badge hidden">⏸</span>
+                <span id="badge-locked" class="photo-badge hidden">🔒</span>
             </div>
 
             <!-- Clock (top-right) -->
             <span id="photo-clock" class="photo-clock">00:00</span>
 
-            <!-- Touch control bar (bottom) -->
-            <div class="photo-controls">
-                <button class="btn small-btn" id="ph-prev" aria-label="Previous photo">‹</button>
-                <button class="btn small-btn" id="ph-playpause">⏸ Pause</button>
-                <button class="btn small-btn" id="ph-next" aria-label="Next photo">›</button>
-                <button class="btn small-btn" id="ph-random">🎲 Random</button>
-                <button class="btn small-btn" id="ph-shuffle">🔀 Shuffle</button>
-                <button class="btn small-btn" id="ph-lock">🔒 Lock</button>
+            <!-- Compact, low-profile controls (bottom-right) -->
+            <div class="photo-controls" id="photo-controls">
+                <button class="ph-btn" id="ph-prev" aria-label="Previous photo">‹</button>
+                <button class="ph-btn" id="ph-playpause" aria-label="Pause or resume">⏸</button>
+                <button class="ph-btn" id="ph-next" aria-label="Next photo">›</button>
+                <button class="ph-btn" id="ph-random" aria-label="Random photo">🎲</button>
+                <button class="ph-btn" id="ph-shuffle" aria-label="Toggle shuffle">🔀</button>
+                <button class="ph-btn" id="ph-lock" aria-label="Lock on this photo">🔒</button>
                 <span id="photo-counter" class="photo-counter">0 / 0</span>
             </div>
         </div>

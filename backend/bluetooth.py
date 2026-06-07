@@ -13,6 +13,7 @@ import platform
 import re
 import shutil
 import subprocess
+import threading
 import time
 
 from backend.actions import run_shortcut
@@ -30,8 +31,10 @@ _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}([:-][0-9A-Fa-f]{2}){5}$")
 _device_index: dict = {}
 
 # system_profiler takes a second or two; cache scans briefly. Rescan forces one.
-_SCAN_TTL_SECONDS = 8
+_SCAN_TTL_SECONDS = 15
 _scan_cache = {"ts": 0.0, "data": None}
+# Keep two requests from launching system_profiler at the same time.
+_scan_lock = threading.Lock()
 
 
 def _is_macos() -> bool:
@@ -78,10 +81,14 @@ def _scan(force: bool = False) -> dict:
     if not force and _scan_cache["data"] is not None and (now - _scan_cache["ts"]) < _SCAN_TTL_SECONDS:
         return _scan_cache["data"]
 
-    result = _scan_uncached()
-    if result.get("error") is None:  # don't cache failures
-        _scan_cache["data"] = result
-        _scan_cache["ts"] = now
+    with _scan_lock:
+        now = time.time()
+        if not force and _scan_cache["data"] is not None and (now - _scan_cache["ts"]) < _SCAN_TTL_SECONDS:
+            return _scan_cache["data"]  # filled while we waited
+        result = _scan_uncached()
+        if result.get("error") is None:  # don't cache failures
+            _scan_cache["data"] = result
+            _scan_cache["ts"] = time.time()
     return result
 
 

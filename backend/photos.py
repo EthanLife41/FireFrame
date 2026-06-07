@@ -6,6 +6,7 @@ outside the repo. Images are never committed (see .gitignore).
 
 import os
 import random
+import time
 
 from backend.config_loader import PHOTOS_DIR_OVERRIDE, PHOTO_INTERVAL_SECONDS
 
@@ -14,20 +15,31 @@ PHOTOS_DIR = os.path.abspath(PHOTOS_DIR_OVERRIDE) if PHOTOS_DIR_OVERRIDE else os
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
+# Cache the directory listing briefly so repeated /api/photos and random calls
+# don't hit the filesystem every time.
+_LISTING_TTL_SECONDS = 30
+_listing_cache = {"ts": 0.0, "photos": None}
 
-def get_local_photos() -> list:
-    photos = []
+
+def _scan_dir() -> list:
     if not os.path.isdir(PHOTOS_DIR):
-        return photos
-
+        return []
+    photos = []
     for filename in os.listdir(PHOTOS_DIR):
         if filename.startswith("."):
             continue
         ext = os.path.splitext(filename)[1].lower()
         if ext in ALLOWED_EXTENSIONS:
             photos.append(filename)
-
     return sorted(photos)
+
+
+def get_local_photos() -> list:
+    now = time.time()
+    if _listing_cache["photos"] is None or (now - _listing_cache["ts"]) > _LISTING_TTL_SECONDS:
+        _listing_cache["photos"] = _scan_dir()
+        _listing_cache["ts"] = now
+    return _listing_cache["photos"]
 
 
 def get_random_photo():
