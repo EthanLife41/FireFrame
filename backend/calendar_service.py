@@ -97,7 +97,11 @@ def _shape(events: list) -> list:
         title = (ev.get("title") or "Untitled").strip()
         name = (ev.get("calendar") or "").strip()
         uid = str(ev.get("uid") or ev.get("id") or "").strip()
-        eid = uid or hashlib.sha1(f"{title}|{start.isoformat()}".encode("utf-8")).hexdigest()[:12]
+        # Recurring events share one identifier across every occurrence, so fold
+        # the start into the id to keep occurrences distinct. A true duplicate
+        # spanning a month boundary still collapses (same uid and same start).
+        basis = f"{uid}|{start.isoformat()}" if uid else f"{title}|{start.isoformat()}"
+        eid = hashlib.sha1(basis.encode("utf-8")).hexdigest()[:16]
         desc = (ev.get("description") or ev.get("notes") or "").strip()
         if len(desc) > 600:   # keep the payload (and the popover) small
             desc = desc[:600].rstrip() + "..."
