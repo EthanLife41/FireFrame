@@ -1338,7 +1338,8 @@ let tmrInterval = null;
 let tmrRemaining = 0;          // seconds left
 let tmrTotal = 0;             // seconds total
 let tmrName = 'Timer';
-let tmrMode = 'idle';        // idle | custom | running | paused | finished
+let tmrMode = 'idle';        // idle | running | paused | finished (timer state)
+let tmrCustomOpen = false;   // is the custom-entry view showing? (view only)
 
 function setupTimer() {
     const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
@@ -1369,7 +1370,7 @@ function openTimerModal(forceCustom) {
     const m = timerModalEl();
     if (m) m.classList.remove('hidden');
     if (forceCustom || tmrMode === 'idle') showCustomEntry();
-    else renderTimer();
+    else { tmrCustomOpen = false; renderTimer(); }
 }
 
 function closeTimerModal() {
@@ -1377,8 +1378,10 @@ function closeTimerModal() {
     if (m) m.classList.add('hidden');
 }
 
+// Show the custom-entry view. This does NOT change the timer state, so a timer
+// already running keeps counting down (and its chip keeps updating) underneath.
 function showCustomEntry() {
-    tmrMode = 'custom';
+    tmrCustomOpen = true;
     const err = document.getElementById('timer-error');
     if (err) err.classList.add('hidden');
     renderTimer();
@@ -1395,6 +1398,7 @@ function presetName(mins) {
 
 function startTimerFor(mins, name) {
     if (!mins || mins < 1) return;
+    tmrCustomOpen = false;
     tmrName = name || presetName(mins);
     tmrTotal = mins * 60;
     tmrRemaining = tmrTotal;
@@ -1449,7 +1453,7 @@ function toggleTimer() {
 }
 
 function resetTimer() {
-    if (tmrMode === 'idle' || tmrMode === 'custom') return;
+    if (tmrMode === 'idle') return;
     clearInterval(tmrInterval);
     tmrInterval = null;
     tmrRemaining = tmrTotal;
@@ -1464,6 +1468,7 @@ function cancelTimer() {
     tmrMode = 'idle';
     tmrRemaining = 0;
     tmrTotal = 0;
+    tmrCustomOpen = false;
     updateChip();
     closeTimerModal();
 }
@@ -1473,6 +1478,7 @@ function finishTimer() {
     tmrInterval = null;
     tmrRemaining = 0;
     tmrMode = 'finished';
+    tmrCustomOpen = false;   // surface the finished state even if custom was open
     renderTimer();
     updateChip();
     showToast(`⏱️ ${tmrName} finished`);
@@ -1502,7 +1508,7 @@ function fmtClock(totalSec) {
 
 function renderTimer() {
     const show = (id, vis) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !vis); };
-    const custom = tmrMode === 'custom';
+    const custom = tmrCustomOpen;
 
     show('timer-custom', custom);
     show('timer-display', !custom);
