@@ -160,6 +160,7 @@ function showLogin() {
     isLoggedIn = false;
     stopStatsPolling();
     stopMacStats();
+    cancelTimer();
     loginScreen.classList.add('active');
     loginScreen.classList.remove('hidden');
     mainScreen.classList.add('hidden');
@@ -381,10 +382,7 @@ function setupActions() {
     document.querySelectorAll('.action-btn[data-action]').forEach(btn => {
         btn.addEventListener('click', () => onActionButton(btn));
     });
-    // Built-in timer buttons (client-side, no macOS setup needed).
-    document.querySelectorAll('.action-btn[data-timer]').forEach(btn => {
-        btn.addEventListener('click', () => startTimerMinutes(parseInt(btn.getAttribute('data-timer'), 10)));
-    });
+    // Timer preset buttons are wired in setupTimer().
     // Restart instructions.
     const restartBtn = document.getElementById('open-restart-btn');
     if (restartBtn) restartBtn.addEventListener('click', () =>
@@ -1310,13 +1308,6 @@ function setText(id, val) {
 // MODALS
 // ============================================================
 function setupModals() {
-    // Pomodoro / timer modal
-    const pomodoroModal = document.getElementById('pomodoro-modal');
-    document.getElementById('open-pomodoro-btn').addEventListener('click', () =>
-        pomodoroModal.classList.remove('hidden'));
-    document.getElementById('close-pomodoro-btn').addEventListener('click', () =>
-        pomodoroModal.classList.add('hidden'));
-
     // Restart-instructions modal
     const restartClose = document.getElementById('restart-close-btn');
     if (restartClose) restartClose.addEventListener('click', () =>
@@ -1336,85 +1327,211 @@ function setupModals() {
 }
 
 // ============================================================
-// POMODORO TIMER
+// TIMER  (FireFrame's own countdown; gentle Mac notification on finish)
+// One active timer. The countdown runs client-side; completion pings the
+// server to post a passive macOS notification (see /api/timer/notify). A single
+// interval is used and always cleared before a new one starts (no stacking).
 // ============================================================
-let timerSec = 25 * 60, timerRunning = false, timerInterval2 = null;
+const TIMER_PRESETS = { 5: '5 min timer', 15: '15 min timer', 25: 'Focus timer', 45: 'Work timer' };
 
-function renderTimer() {
-    const display = document.getElementById('timer-display');
-    if (!display) return;
-    const m = String(Math.floor(timerSec / 60)).padStart(2, '0');
-    const s = String(timerSec % 60).padStart(2, '0');
-    display.textContent = `${m}:${s}`;
-}
-
-function timerToggleLabel(txt) {
-    const b = document.getElementById('timer-toggle-btn');
-    if (b) b.textContent = txt;
-}
-
-function startTimer() {
-    if (timerRunning) return;
-    timerRunning = true;
-    timerToggleLabel('Pause');
-    timerInterval2 = setInterval(() => {
-        if (timerSec > 0) {
-            timerSec--;
-            renderTimer();
-        } else {
-            pauseTimer();
-            timerToggleLabel('Start');
-            showToast('⏱️ Timer done!');
-        }
-    }, 1000);
-}
-
-function pauseTimer() {
-    clearInterval(timerInterval2);
-    timerInterval2 = null;
-    timerRunning = false;
-}
-
-function setTimerMinutes(mins, autostart) {
-    pauseTimer();
-    timerSec = Math.max(1, mins || 1) * 60;
-    renderTimer();
-    if (autostart) startTimer(); else timerToggleLabel('Start');
-}
-
-// Open the timer modal preset to N minutes and start it (used by the Timers tab).
-function startTimerMinutes(mins) {
-    const modal = document.getElementById('pomodoro-modal');
-    if (modal) modal.classList.remove('hidden');
-    setTimerMinutes(mins, true);
-}
+let tmrInterval = null;
+let tmrRemaining = 0;          // seconds left
+let tmrTotal = 0;             // seconds total
+let tmrName = 'Timer';
+let tmrMode = 'idle';        // idle | custom | running | paused | finished
 
 function setupTimer() {
-    document.querySelectorAll('.timer-presets .btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const v = btn.getAttribute('data-time');
-            let mins = 25;
-            if (v === 'custom') {
-                const inp = prompt('Minutes:');
-                if (!inp || isNaN(inp)) return;
-                mins = parseInt(inp, 10);
-            } else {
-                mins = parseInt(v, 10);
-            }
-            setTimerMinutes(mins, false);
-        });
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+
+    on('open-timer-btn', () => openTimerModal());     // home favourite
+    on('timer-custom-btn', () => openTimerModal(true)); // Timers section "Custom"
+
+    document.querySelectorAll('.action-btn[data-timer]').forEach(btn => {
+        btn.addEventListener('click', () => startTimerFor(parseInt(btn.getAttribute('data-timer'), 10)));
+    });
+    document.querySelectorAll('.timer-quick [data-quick]').forEach(btn => {
+        btn.addEventListener('click', () => startTimerFor(parseInt(btn.getAttribute('data-quick'), 10)));
     });
 
-    const toggleBtn = document.getElementById('timer-toggle-btn');
-    if (toggleBtn) toggleBtn.addEventListener('click', () => {
-        if (timerRunning) { pauseTimer(); timerToggleLabel('Resume'); }
-        else startTimer();
-    });
-
-    const resetBtn = document.getElementById('timer-reset-btn');
-    if (resetBtn) resetBtn.addEventListener('click', () => setTimerMinutes(25, false));
+    on('timer-toggle-btn', toggleTimer);
+    on('timer-reset-btn', resetTimer);
+    on('timer-cancel-btn', cancelTimer);
+    on('timer-close-btn', closeTimerModal);
+    on('timer-start-btn', startCustomTimer);
+    on('timer-chip', () => openTimerModal());
 
     renderTimer();
+}
+
+function timerModalEl() { return document.getElementById('timer-modal'); }
+
+function openTimerModal(forceCustom) {
+    const m = timerModalEl();
+    if (m) m.classList.remove('hidden');
+    if (forceCustom || tmrMode === 'idle') showCustomEntry();
+    else renderTimer();
+}
+
+function closeTimerModal() {
+    const m = timerModalEl();
+    if (m) m.classList.add('hidden');
+}
+
+function showCustomEntry() {
+    tmrMode = 'custom';
+    const err = document.getElementById('timer-error');
+    if (err) err.classList.add('hidden');
+    renderTimer();
+}
+
+function presetName(mins) {
+    if (TIMER_PRESETS[mins]) return TIMER_PRESETS[mins];
+    if (mins >= 60) {
+        const h = Math.floor(mins / 60), mm = mins % 60;
+        return mm ? `${h}h ${mm}m timer` : `${h}h timer`;
+    }
+    return `${mins} min timer`;
+}
+
+function startTimerFor(mins, name) {
+    if (!mins || mins < 1) return;
+    tmrName = name || presetName(mins);
+    tmrTotal = mins * 60;
+    tmrRemaining = tmrTotal;
+    tmrMode = 'running';
+    runTimerInterval();
+    const m = timerModalEl();
+    if (m) m.classList.remove('hidden');
+    renderTimer();
+    updateChip();
+}
+
+function startCustomTimer() {
+    const h = parseInt(document.getElementById('timer-hours').value, 10) || 0;
+    const mins = parseInt(document.getElementById('timer-mins').value, 10) || 0;
+    const total = h * 60 + mins;
+    const err = document.getElementById('timer-error');
+    const fail = (msg) => { if (err) { err.textContent = msg; err.classList.remove('hidden'); } };
+    if (h < 0 || mins < 0 || total < 1) return fail('Enter at least 1 minute.');
+    if (total > 1440) return fail('Maximum is 24 hours.');
+    if (err) err.classList.add('hidden');
+    document.getElementById('timer-hours').value = '';
+    document.getElementById('timer-mins').value = '';
+    startTimerFor(total);
+}
+
+function runTimerInterval() {
+    clearInterval(tmrInterval);   // never stack intervals
+    tmrInterval = setInterval(timerTick, 1000);
+}
+
+function timerTick() {
+    if (tmrMode !== 'running') return;
+    tmrRemaining--;
+    if (tmrRemaining <= 0) { finishTimer(); return; }
+    renderTimer();
+    updateChip();
+}
+
+function toggleTimer() {
+    if (tmrMode === 'running') {
+        tmrMode = 'paused';
+        clearInterval(tmrInterval);
+        tmrInterval = null;
+    } else if (tmrMode === 'paused') {
+        tmrMode = 'running';
+        runTimerInterval();
+    } else {
+        return;
+    }
+    renderTimer();
+    updateChip();
+}
+
+function resetTimer() {
+    if (tmrMode === 'idle' || tmrMode === 'custom') return;
+    clearInterval(tmrInterval);
+    tmrInterval = null;
+    tmrRemaining = tmrTotal;
+    tmrMode = 'paused';
+    renderTimer();
+    updateChip();
+}
+
+function cancelTimer() {
+    clearInterval(tmrInterval);
+    tmrInterval = null;
+    tmrMode = 'idle';
+    tmrRemaining = 0;
+    tmrTotal = 0;
+    updateChip();
+    closeTimerModal();
+}
+
+function finishTimer() {
+    clearInterval(tmrInterval);
+    tmrInterval = null;
+    tmrRemaining = 0;
+    tmrMode = 'finished';
+    renderTimer();
+    updateChip();
+    showToast(`⏱️ ${tmrName} finished`);
+    notifyTimerDone(tmrName, Math.round(tmrTotal / 60));
+}
+
+// Ping the server to post a passive macOS notification. The on-screen finished
+// state is the primary signal, so a failure here is silently ignored.
+async function notifyTimerDone(label, minutes) {
+    try {
+        await fetch('/api/timer/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ minutes, label })
+        });
+    } catch { /* ignore */ }
+}
+
+function fmtClock(totalSec) {
+    totalSec = Math.max(0, totalSec);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+function renderTimer() {
+    const show = (id, vis) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !vis); };
+    const custom = tmrMode === 'custom';
+
+    show('timer-custom', custom);
+    show('timer-display', !custom);
+    show('timer-state', !custom);
+    const controls = document.querySelector('.timer-controls');
+    if (controls) controls.classList.toggle('hidden', custom);
+
+    setText('timer-name', custom ? 'Custom Timer' : tmrName);
+    setText('timer-display', fmtClock(tmrRemaining));
+    setText('timer-state', { running: 'Running', paused: 'Paused', finished: 'Done', idle: 'Ready' }[tmrMode] || '');
+
+    const box = document.querySelector('#timer-modal .timer-box');
+    if (box) box.classList.toggle('timer-done', tmrMode === 'finished');
+
+    const toggle = document.getElementById('timer-toggle-btn');
+    if (toggle) {
+        toggle.textContent = tmrMode === 'paused' ? 'Resume' : 'Pause';
+        toggle.classList.toggle('hidden', tmrMode === 'finished');
+    }
+}
+
+function updateChip() {
+    const chip = document.getElementById('timer-chip');
+    if (!chip) return;
+    const active = ['running', 'paused', 'finished'].includes(tmrMode);
+    chip.classList.toggle('hidden', !active);
+    chip.classList.toggle('done', tmrMode === 'finished');
+    chip.classList.toggle('paused', tmrMode === 'paused');
+    setText('timer-chip-time', tmrMode === 'finished' ? 'Done' : fmtClock(tmrRemaining));
 }
 
 // ============================================================

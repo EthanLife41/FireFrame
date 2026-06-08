@@ -70,6 +70,10 @@ _DEFAULTS = {
     # Photos
     "PHOTOS_DIR_OVERRIDE": os.getenv("PHOTOS_DIR", ""),
     "PHOTO_INTERVAL_SECONDS": int(os.getenv("PHOTO_INTERVAL_SECONDS", "30")),
+    # Timers: the soft macOS sound played with the completion notification.
+    # A name from /System/Library/Sounds (e.g. Glass, Tink, Pop, Ping). Set
+    # to "" for a silent (banner-only) notification.
+    "TIMER_SOUND": os.getenv("TIMER_SOUND", "Glass"),
     # Bluetooth
     "BLUETOOTH_ALLOW_CONNECT": _flag("BLUETOOTH_ALLOW_CONNECT"),
     "BLUEUTIL_PATH": os.getenv("BLUEUTIL_PATH", ""),

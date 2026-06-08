@@ -29,6 +29,11 @@ CALENDAR_REFRESH_SECONDS = int(os.getenv("CALENDAR_REFRESH_SECONDS", "300"))
 PHOTOS_DIR_OVERRIDE = os.getenv("PHOTOS_DIR", "")
 PHOTO_INTERVAL_SECONDS = int(os.getenv("PHOTO_INTERVAL_SECONDS", "30"))
 
+# --- Timers ---
+# Soft macOS sound played with the timer-completion notification. Use a name
+# from /System/Library/Sounds (Glass, Tink, Pop, Ping, Purr...). "" = silent.
+TIMER_SOUND = os.getenv("TIMER_SOUND", "Glass")
+
 # --- Bluetooth ---
 # Connect/disconnect needs the optional 'blueutil' tool. Set to 0 to disable
 # those actions entirely (listing/status still work).

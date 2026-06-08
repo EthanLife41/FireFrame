@@ -15,7 +15,7 @@ Run it on your **local network only**. Do not port-forward it or expose it to th
 - **Calendar:** today and upcoming events from Apple Calendar, a local or remote `.ics`, or demo data.
 - **Photos:** a slideshow with shuffle, pause, lock-on-photo, and prev/next/random.
 - **Mac stats:** CPU, RAM, battery, and uptime.
-- **Pomodoro timer:** built in.
+- **Timers:** preset (5/15/25/45 min) and custom countdowns with a gentle macOS notification on completion.
 
 > FireFrame targets **macOS**. Bluetooth and Calendar use macOS tools; on other systems they show a clear "unavailable / not connected" state so you can still work on the UI.
 
@@ -123,18 +123,34 @@ Focus modes have no command-line equivalent on macOS, so they go through Shortcu
 | Quick Note | New quick note | macOS Shortcut | Create **FireFrame Quick Note** | Shortcuts | `shortcuts run "FireFrame Quick Note"` |
 | GPT | Opens the ChatGPT app, else the website | App or URL | Install ChatGPT (optional) | None | `open -a ChatGPT` |
 | Wallpapers | Opens the **iWallpaper** app | Direct (`open -a`) | Install/rename in config | macOS may prompt | `open -a iWallpaper` |
-| 5 / 15 / 25 / 45 min | Starts FireFrame's built-in timer | In-app (no setup) | None | None | n/a |
+| 5 / 15 / 25 / 45 min, Custom | FireFrame's own countdown + gentle Mac notification | In-app (no Shortcut) | None | Notifications (see below) | n/a |
 | Prepare | Opens your work apps + links | Direct (`open`) | Edit `PREPARE_APPS` / `PREPARE_URLS` | None | `open -a Spotify` |
 | Restart | Shows safe restart instructions | Info modal | None | None | n/a |
 
 Notes:
-- **Shortcut names you must create:** `FireFrame DND`, `FireFrame Locked In`, `FireFrame Presentation Mode`, `FireFrame Break Mode`, `FireFrame Sleep Mode`, `FireFrame Quick Note`. (You can also point `prepare`/timers at Shortcuts named `FireFrame Prepare`, `FireFrame 5 Minute Timer`, etc. by editing the registry.)
-- **Timers** use FireFrame's own timer UI by default (most reliable). To use Shortcuts instead, set e.g. `"timer_25": {"type": "shortcut", "shortcut": "FireFrame 25 Minute Focus Timer"}` and add a button.
+- **Shortcut names you must create:** `FireFrame DND`, `FireFrame Locked In`, `FireFrame Presentation Mode`, `FireFrame Break Mode`, `FireFrame Sleep Mode`, `FireFrame Quick Note`. (You can also point `prepare` at a Shortcut named `FireFrame Prepare` by editing the registry.)
 - **iWallpaper / Spotify / ChatGPT** are app names. If your app is named differently, change `app` in `SHORTCUT_ACTIONS`. If an app isn't installed, the button shows a clean "Is it installed?" error.
 - **Sleep Mac** is the only confirmed action and won't fire from a stray tap or background refresh.
 - **Restart** never restarts the server remotely; it shows manual steps (Ctrl-C in the terminal, re-run your launch command, then Reload App).
 
 To keep your setup out of Git, put your edited `SHORTCUT_ACTIONS`, `PREPARE_APPS`, and `PREPARE_URLS` in `backend/config.py`, which is gitignored. The committed `backend/config.example.py` carries only generic placeholders.
+
+### Timers
+
+Timers use **FireFrame's own countdown** (not macOS Shortcuts), so presets and custom durations work the same way and never trigger the loud Clock-app alarm.
+
+- **Presets:** 5 / 15 / 25 (Focus) / 45 (Work) minutes. Tapping one starts the countdown and opens the timer panel.
+- **Custom:** the **Custom** button opens an entry with hours + minutes fields and quick chips (10 / 20 / 30 / 60 min). Input is validated (1 minute to 24 hours) with a clean inline error.
+- **Controls:** Pause/Resume, Reset (back to full duration), Cancel. Only one timer runs at a time. A small countdown chip stays visible above the bottom nav across all tabs; tap it to reopen the panel.
+- **On completion:** FireFrame shows a calm "Done" state and posts a **passive macOS notification** with a soft sound (default `Glass`). The notification respects Do Not Disturb / Focus, so it won't interrupt focused or full-screen work — during a Focus it's silently held by macOS, and the on-screen "Done" state still shows on the tablet.
+
+**Enabling the Mac notification:** the banner is posted via `osascript display notification`, which macOS attributes to **Script Editor**. If you don't see banners, open **System Settings → Notifications → Script Editor** and allow notifications. Test it from Terminal:
+
+```bash
+osascript -e 'display notification "25-minute timer finished" with title "FireFrame Timer" sound name "Glass"'
+```
+
+Change or silence the sound with `TIMER_SOUND` in `backend/config.py` (any name from `/System/Library/Sounds`, e.g. `Tink`, `Pop`, `Ping`; set `""` for a silent banner). To prefer Shortcut-based presets instead, you can still add `data-action` buttons that map to `{"type": "shortcut", ...}` entries — but the built-in timer is recommended because it handles custom durations and stays gentle.
 
 ## Fire tablet (Fully Kiosk Browser)
 

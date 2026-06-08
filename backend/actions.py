@@ -6,9 +6,13 @@ by name; apps/URLs are opened with `open`; a few direct controls (mute, sleep,
 prepare) are small fixed commands. shell=True is never used.
 """
 
+import re
 import subprocess
 
-from backend.config_loader import SHORTCUT_ACTIONS, PREPARE_APPS, PREPARE_URLS
+from backend.config_loader import SHORTCUT_ACTIONS, PREPARE_APPS, PREPARE_URLS, TIMER_SOUND
+
+_LABEL_RE = re.compile(r"[^A-Za-z0-9 ]+")   # notification text: letters/digits/spaces only
+_SOUND_RE = re.compile(r"[^A-Za-z0-9]+")    # macOS sound name: letters/digits only
 
 
 def run_shortcut(shortcut_name: str) -> dict:
@@ -100,6 +104,36 @@ def run_prepare() -> dict:
     opened_apps = sum(1 for app in PREPARE_APPS if run_open_command(app)["success"])
     opened_urls = open_urls(PREPARE_URLS)
     return {"success": True, "message": f"Prepared: opened {opened_apps} app(s) and {opened_urls} link(s)."}
+
+
+def notify_timer_done(minutes, label="") -> dict:
+    """Post a passive macOS notification (with a soft sound) when a FireFrame
+    timer finishes. It respects Do Not Disturb / Focus, so it won't interrupt
+    focused work. The dynamic text is passed as argv, never interpolated into
+    the script, so it can't break out; the sound name is sanitised too."""
+    try:
+        minutes = int(minutes)
+    except (TypeError, ValueError):
+        minutes = 0
+    minutes = max(1, min(1440, minutes))
+    label = _LABEL_RE.sub("", (label or "")).strip()[:40]
+    body = f"{label} finished" if label else f"{minutes}-minute timer finished"
+    sound = _SOUND_RE.sub("", (TIMER_SOUND or "")).strip()
+    sound_clause = f' sound name "{sound}"' if sound else ""
+    script = ("on run argv\n"
+              "  display notification (item 1 of argv) with title (item 2 of argv)"
+              f"{sound_clause}\n"
+              "end run")
+    try:
+        subprocess.run(["osascript", "-e", script, body, "FireFrame Timer"],
+                       check=True, capture_output=True, timeout=6)
+        return {"success": True, "message": "Timer notification sent."}
+    except FileNotFoundError:
+        return {"success": False, "message": "Notifications are macOS only."}
+    except subprocess.CalledProcessError:
+        return {"success": False, "message": "Could not post the notification."}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "message": "Notification timed out."}
 
 
 def handle_action(action_id: str, params: dict) -> dict:

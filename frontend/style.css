@@ -775,18 +775,88 @@ html, body {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.30);
 }
-.timer-box { max-width: 320px; }
+.timer-box { max-width: 340px; gap: 0.7rem; }
+.timer-name { font-size: 0.95rem; font-weight: 700; color: var(--text); }
 .timer-display {
     font-size: clamp(2.8rem, 8vw, 3.8rem);
     font-weight: 800;
     letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
+    line-height: 1;
 }
-.timer-presets {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
+.timer-state {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
 }
+/* Calm finished state: a soft green wash, no flashing. */
+.timer-box.timer-done .timer-display { color: var(--green); }
+.timer-box.timer-done .timer-state { color: var(--green); }
+
+/* Custom-duration entry */
+.timer-custom { display: flex; flex-direction: column; gap: 0.7rem; align-items: center; }
+.timer-custom-row { display: flex; gap: 0.8rem; justify-content: center; }
+.timer-field { display: flex; align-items: baseline; gap: 0.3rem; color: var(--muted); font-size: 0.85rem; }
+.timer-input {
+    width: 4.2rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 1.6rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 0.5rem 0.4rem;
+    font-variant-numeric: tabular-nums;
+}
+.timer-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.30);
+}
+/* Hide number-input spinners (they're fiddly on touch) */
+.timer-input::-webkit-outer-spin-button,
+.timer-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.timer-input { -moz-appearance: textfield; }
+.timer-quick { display: flex; gap: 0.45rem; flex-wrap: wrap; justify-content: center; }
+#timer-start-btn { width: 100%; }
+.timer-controls { gap: 0.6rem; }
+.timer-close-btn { align-self: center; }
+
+/* Floating countdown chip: small, fixed above the bottom nav, across all tabs */
+.timer-chip {
+    position: fixed;
+    left: 12px;
+    bottom: calc(var(--nav-h) + 12px);
+    z-index: 400;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.8rem 0.4rem 0.7rem;
+    border-radius: var(--pill);
+    background: rgba(14, 15, 20, 0.82);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    color: var(--text);
+    cursor: pointer;
+}
+.timer-chip-time { font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.timer-chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    animation: chipPulse 1.6s ease-in-out infinite;
+}
+.timer-chip.paused .timer-chip-dot { background: var(--muted); animation: none; }
+.timer-chip.done { border-color: rgba(48, 209, 88, 0.5); }
+.timer-chip.done .timer-chip-dot { background: var(--green); animation: none; }
+.timer-chip.done .timer-chip-time { color: var(--green); }
+@keyframes chipPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes popIn {

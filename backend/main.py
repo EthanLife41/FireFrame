@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from backend.auth import create_session_token, get_current_user, SESSION_MAX_AGE_SECONDS
 from backend.config_loader import DASHBOARD_PASSWORD
-from backend.actions import handle_action
+from backend.actions import handle_action, notify_timer_done
 from backend.bluetooth import (
     handle_bluetooth_action,
     get_bluetooth_status,
@@ -84,6 +84,10 @@ class ActionRequest(BaseModel):
 
 class DeviceRequest(BaseModel):
     id: str
+
+class TimerNotifyRequest(BaseModel):
+    minutes: int = 0
+    label: str = ""
 
 # --- Routes ---
 
@@ -198,6 +202,10 @@ async def mac_stats_dashboard(user: bool = Depends(get_current_user)):
 @app.get("/api/settings")
 async def settings_status(user: bool = Depends(get_current_user)):
     return get_settings_status()
+
+@app.post("/api/timer/notify")
+async def timer_notify(req: TimerNotifyRequest, user: bool = Depends(get_current_user)):
+    return notify_timer_done(req.minutes, req.label)
 
 @app.post("/api/photos/open")
 async def photos_open(user: bool = Depends(get_current_user)):
