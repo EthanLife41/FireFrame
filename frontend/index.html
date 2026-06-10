@@ -78,44 +78,112 @@
 
     <main class="content-area">
 
-        <!-- HOME TAB -->
+        <!-- HOME TAB: at-a-glance control centre -->
         <div id="tab-home" class="tab-content active">
-            <div class="home-layout">
+            <div class="home-grid">
 
-                <!-- Left column: Clock + Event -->
-                <div class="home-left">
-                    <div class="card clock-card">
-                        <div id="clock" class="clock">00:00</div>
-                        <div id="date" class="date-text">Loading...</div>
+                <div class="card clock-card home-clock">
+                    <div id="clock" class="clock">00:00</div>
+                    <div id="date" class="date-text">Loading...</div>
+                </div>
+
+                <div class="card home-card home-events">
+                    <div class="card-head">
+                        <div class="card-label">Up Next</div>
+                        <button class="btn small-btn ghost-btn" onclick="switchTab('calendar')">Calendar</button>
                     </div>
-                    <div class="card event-card">
-                        <div class="card-label">Next Event</div>
-                        <div id="next-event" class="event-title-main">—</div>
-                        <div id="event-countdown" class="event-countdown"></div>
+                    <div id="home-events" class="home-events-list">
+                        <div class="home-empty">Loading...</div>
                     </div>
                 </div>
 
-                <!-- Right column: Stats + Status + Favs -->
-                <div class="home-right">
-                    <div class="card stats-mini-card">
-                        <div class="card-label">Mac Stats</div>
-                        <div class="stats-row"><span>CPU</span><span id="home-cpu">—</span></div>
-                        <div class="stats-row"><span>RAM</span><span id="home-ram">—</span></div>
-                        <div class="stats-row"><span>Battery</span><span id="home-battery">—</span></div>
-                        <div class="stats-row"><span>Uptime</span><span id="home-uptime">—</span></div>
+                <div class="card home-card home-mac">
+                    <div class="card-head">
+                        <div class="card-label">Mac</div>
+                        <button class="btn small-btn ghost-btn" onclick="switchTab('mac-stats')">Stats</button>
                     </div>
-                    <div class="card bt-mini-card">
+                    <div class="meter"><div class="meter-top"><span>CPU</span><span id="home-cpu">—</span></div><div class="bar"><div class="bar-fill" id="home-cpu-bar"></div></div></div>
+                    <div class="meter"><div class="meter-top"><span>Memory</span><span id="home-ram">—</span></div><div class="bar"><div class="bar-fill" id="home-ram-bar"></div></div></div>
+                    <div class="meter"><div class="meter-top"><span>Storage</span><span id="home-disk">—</span></div><div class="bar"><div class="bar-fill" id="home-disk-bar"></div></div></div>
+                    <div class="meter"><div class="meter-top"><span>Battery</span><span id="home-battery">—</span></div><div class="bar"><div class="bar-fill" id="home-battery-bar"></div></div></div>
+                    <div class="home-mac-foot"><span>Uptime</span><span id="home-uptime">—</span></div>
+                </div>
+
+                <div class="card home-card home-bt">
+                    <div class="card-head">
                         <div class="card-label">Bluetooth</div>
-                        <div class="stats-row"><span>Status</span><span id="home-bt-status">—</span></div>
+                        <span id="home-bt-pill" class="pill-badge">—</span>
+                    </div>
+                    <div id="home-bt-status" class="home-bt-status">Checking...</div>
+                    <div id="home-bt-devices" class="home-bt-devices"></div>
+                    <button class="btn small-btn ghost-btn home-bt-open" onclick="switchTab('bluetooth')">Open Bluetooth</button>
+                </div>
+
+                <div class="card home-card home-timer">
+                    <div class="card-label">Timer</div>
+                    <div id="home-timer-active" class="home-timer-active hidden">
+                        <div id="home-timer-name" class="home-timer-name">Timer</div>
+                        <div id="home-timer-time" class="home-timer-time">00:00</div>
+                        <div class="home-timer-controls">
+                            <button class="btn small-btn" id="home-timer-toggle">Pause</button>
+                            <button class="btn small-btn danger-btn" id="home-timer-cancel">Cancel</button>
+                        </div>
+                    </div>
+                    <div id="home-timer-quick" class="home-timer-quick">
+                        <button class="btn small-btn" data-timer="5">5</button>
+                        <button class="btn small-btn" data-timer="15">15</button>
+                        <button class="btn small-btn" data-timer="25">25</button>
+                        <button class="btn small-btn" data-timer="45">45</button>
+                        <button class="btn small-btn" id="home-timer-custom">Custom</button>
                     </div>
                 </div>
 
-                <!-- Favourites row -->
-                <div class="home-favs">
-                    <button class="action-btn" data-action="dnd">🔕<span>DND</span></button>
-                    <button class="action-btn" data-action="locked_in">🎯<span>Locked In</span></button>
-                    <button class="action-btn" id="open-timer-btn">⏱️<span>Timer</span></button>
-                    <button class="action-btn" onclick="switchTab('photos')">🖼️<span>Photos</span></button>
+                <div class="card home-card home-weather hidden" id="home-weather-card">
+                    <div class="card-label">Weather</div>
+                    <div id="home-weather" class="home-weather-text">—</div>
+                </div>
+
+                <div class="card home-card home-actions">
+                    <div class="card-label">Quick Actions</div>
+                    <div class="home-mini-grid">
+                        <button class="mini-btn" data-action="dnd">🔕<span>DND</span></button>
+                        <button class="mini-btn" data-action="locked_in">🎯<span>Locked In</span></button>
+                        <button class="mini-btn" data-action="presentation">📽️<span>Present</span></button>
+                        <button class="mini-btn" data-action="break_mode">☕<span>Break</span></button>
+                        <button class="mini-btn" data-action="mute">🔇<span>Mute</span></button>
+                        <button class="mini-btn mini-danger" data-action="sleep_mac" data-confirm="Put this Mac to sleep now?">💤<span>Sleep Mac</span></button>
+                        <button class="mini-btn" data-action="open_spotify">🎵<span>Spotify</span></button>
+                        <button class="mini-btn" data-action="gpt">🤖<span>GPT</span></button>
+                        <button class="mini-btn" data-action="quick_note">📝<span>Note</span></button>
+                        <button class="mini-btn" data-action="display_settings">🖥️<span>Display</span></button>
+                    </div>
+                </div>
+
+                <div class="card home-card home-launcher">
+                    <div class="card-head">
+                        <div class="card-label">Open App</div>
+                        <button class="btn small-btn ghost-btn" onclick="switchTab('buttons')">More</button>
+                    </div>
+                    <div class="home-mini-grid">
+                        <button class="mini-btn" data-action="open_spotify">🎵<span>Spotify</span></button>
+                        <button class="mini-btn" data-action="gpt">🤖<span>ChatGPT</span></button>
+                        <button class="mini-btn" data-action="launch_chrome">🌐<span>Chrome</span></button>
+                        <button class="mini-btn" data-action="launch_vscode">🧩<span>VS Code</span></button>
+                        <button class="mini-btn" data-action="launch_terminal">⌨️<span>Terminal</span></button>
+                        <button class="mini-btn" data-action="launch_notes">🗒️<span>Notes</span></button>
+                        <button class="mini-btn" data-action="launch_finder">📁<span>Finder</span></button>
+                        <button class="mini-btn" data-action="bluetooth_settings">🔵<span>BT Settings</span></button>
+                        <button class="mini-btn" data-action="display_settings">🖥️<span>Display</span></button>
+                        <button class="mini-btn" data-action="wallpapers">🖼️<span>Wallpaper</span></button>
+                    </div>
+                </div>
+
+                <div class="card home-card home-ff">
+                    <div class="home-ff-item"><span>Server</span><span id="home-ff-server" class="st-val">—</span></div>
+                    <div class="home-ff-item"><span>Updated</span><span id="home-ff-updated" class="muted-text">—</span></div>
+                    <div class="home-ff-item"><span>Version</span><span id="home-ff-version" class="muted-text">—</span></div>
+                    <div class="home-ff-item home-ff-url"><span>URL</span><span id="home-ff-url" class="url-text">—</span></div>
+                    <button class="btn small-btn ghost-btn" id="home-copy-url">Copy URL</button>
                 </div>
 
             </div>

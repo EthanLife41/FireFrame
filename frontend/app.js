@@ -70,6 +70,7 @@ function init() {
     setupPhotos();
     setupMacStats();
     setupSettings();
+    setupHome();
     setupVisibility();
 }
 
@@ -177,6 +178,8 @@ function showMainApp() {
     mainScreen.classList.add('active');
     mainScreen.classList.remove('hidden');
     loadHomeNextEvent();
+    fillHomeStatus();
+    fetchWeather();
     startStatsPolling();
 }
 
@@ -368,6 +371,7 @@ function switchTab(tabId) {
     if (tabId === 'photos') { startPhotoShow(); } else { stopPhotoShow(); }
     if (tabId === 'bluetooth') { loadBluetooth(); }
     if (tabId === 'calendar' && !calLoaded) { loadCalendarView(); }
+    if (tabId === 'home') { loadHomeNextEvent(); }
     if (tabId === 'settings') { loadSettings(); }
     // Mac Stats polls only while its tab is open, to stay cheap in the background.
     if (tabId === 'mac-stats') { startMacStats(); } else { stopMacStats(); }
@@ -378,8 +382,9 @@ window.switchTab = switchTab; // used by inline onclick
 // ACTION BUTTONS
 // ============================================================
 function setupActions() {
-    // Server-backed actions (run through the config registry).
-    document.querySelectorAll('.action-btn[data-action]').forEach(btn => {
+    // Server-backed actions (run through the config registry). Covers the
+    // Buttons-page tiles and the compact Home quick-action / launcher tiles.
+    document.querySelectorAll('[data-action]').forEach(btn => {
         btn.addEventListener('click', () => onActionButton(btn));
     });
     // Timer preset buttons are wired in setupTimer().
@@ -461,8 +466,8 @@ function startStatsPolling() {
         statsInterval = setInterval(fetchStats, STATS_POLL_MS);
     }
     if (!btStatusInterval) {
-        fetchBluetoothStatus();
-        btStatusInterval = setInterval(fetchBluetoothStatus, BT_STATUS_POLL_MS);
+        fetchHomeBluetooth();
+        btStatusInterval = setInterval(fetchHomeBluetooth, BT_STATUS_POLL_MS);
     }
 }
 
@@ -479,38 +484,83 @@ async function fetchStats() {
         const res = await fetch('/api/stats');
         if (!res.ok) return;
         const d = await res.json();
+        const pct = (v) => (v === undefined || v === null) ? '—' : Math.round(v) + '%';
 
-        const cpu  = (d.cpu_percent !== undefined && d.cpu_percent !== null) ? d.cpu_percent.toFixed(1) + '%' : '—';
-        const ram  = (d.ram_percent !== undefined && d.ram_percent !== null) ? d.ram_percent.toFixed(1) + '%' : '—';
-        const batt = d.battery_available ? d.battery_percent + '%' : 'N/A';
+        setText('home-cpu', pct(d.cpu_percent));
+        setBar('home-cpu-bar', d.cpu_percent);
+        setText('home-ram', pct(d.ram_percent));
+        setBar('home-ram-bar', d.ram_percent);
+
+        if (d.disk_percent != null) {
+            setText('home-disk', pct(d.disk_percent));
+            setBar('home-disk-bar', d.disk_percent);
+        } else {
+            setText('home-disk', 'N/A');
+        }
+
+        if (d.battery_available) {
+            setText('home-battery', d.battery_percent + '%' + (d.battery_charging ? ' ⚡' : ''));
+            setBatteryBar('home-battery-bar', d.battery_percent, d.battery_charging);
+        } else {
+            setText('home-battery', 'N/A');
+            setBatteryBar('home-battery-bar', 0, false);
+        }
+
         const secs = d.uptime_seconds || 0;
-        const days = Math.floor(secs / 86400);
-        const hrs  = Math.floor((secs % 86400) / 3600);
-        const up   = days > 0 ? `${days}d ${hrs}h` : `${hrs}h`;
+        const days = Math.floor(secs / 86400), hrs = Math.floor((secs % 86400) / 3600);
+        setText('home-uptime', days > 0 ? `${days}d ${hrs}h` : `${hrs}h`);
 
-        setText('home-cpu',      cpu);
-        setText('home-ram',      ram);
-        setText('home-battery',  batt);
-        setText('home-uptime',   up);
+        setText('home-ff-updated', new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch { /* ignore */ }
 }
 
-async function fetchBluetoothStatus() {
+// Battery bar is coloured by how low it is (full is fine, low is the warning).
+function setBatteryBar(id, pct, charging) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = Math.max(0, Math.min(100, pct || 0));
+    el.style.width = v + '%';
+    el.classList.remove('warn', 'crit');
+    if (!charging && v <= 10) el.classList.add('crit');
+    else if (!charging && v <= 20) el.classList.add('warn');
+}
+
+async function fetchHomeBluetooth() {
     if (!isLoggedIn) return;
     try {
-        const res = await fetch('/api/bluetooth/status');
+        const res = await fetch('/api/bluetooth/devices');
         if (!res.ok) return;
-        const d = await res.json();
-        setText('home-bt-status', formatBtStatus(d));
+        renderHomeBluetooth(await res.json());
     } catch { /* ignore */ }
 }
 
-function formatBtStatus(d) {
-    if (!d.available) return 'Unavailable';
-    if (d.powered === false) return 'Off';
-    const n = d.connected_count || 0;
-    if (d.powered === true) return n ? `On · ${n} connected` : 'On';
-    return n ? `${n} connected` : 'Unknown';
+function renderHomeBluetooth(d) {
+    const pill = document.getElementById('home-bt-pill');
+    const devices = document.getElementById('home-bt-devices');
+    const status = document.getElementById('home-bt-status');
+    const openBtn = document.querySelector('.home-bt-open');
+    if (devices) devices.innerHTML = '';
+
+    let pillText = 'Unknown', pillClass = '';
+    if (!d.available) pillText = 'Unavailable';
+    else if (d.powered === false) pillText = 'Off';
+    else if (d.powered === true) { pillText = 'On'; pillClass = 'on'; }
+    if (pill) { pill.textContent = pillText; pill.className = 'pill-badge ' + pillClass; }
+
+    if (!d.available) {
+        if (status) status.textContent = d.message || 'Bluetooth is macOS only.';
+        if (openBtn) openBtn.classList.add('hidden');
+        return;
+    }
+    if (openBtn) openBtn.classList.remove('hidden');
+
+    const connected = (d.devices || []).filter(x => x.connected);
+    if (status) status.textContent = connected.length
+        ? `${connected.length} connected`
+        : (d.powered === false ? 'Turned off' : 'Nothing connected');
+    connected.slice(0, 3).forEach(dev => {
+        devices.appendChild(el('div', 'home-bt-dev', `${btIconFor(dev.type)} ${dev.name || 'Device'}`));
+    });
 }
 
 // ============================================================
@@ -972,31 +1022,98 @@ function showEventDetails(ev) {
     document.getElementById('event-modal').classList.remove('hidden');
 }
 
-// Home tab: show the next upcoming event with a live countdown.
+// Home tab: the next few events, with a live countdown on the first one.
 async function loadHomeNextEvent() {
+    const wrap = document.getElementById('home-events');
     try {
-        const d = await (await fetch('/api/calendar/upcoming')).json();
-        if (!d.connected) { setText('next-event', 'Not connected'); setText('event-countdown', ''); return; }
-        if (!d.events || !d.events.length) { setText('next-event', 'No upcoming events'); setText('event-countdown', ''); return; }
-        const ev = d.events[0];
-        setText('next-event', ev.title);
-        const nextStart = new Date(ev.start);
+        renderHomeEvents(await (await fetch('/api/calendar/upcoming')).json());
+    } catch {
+        if (wrap) wrap.innerHTML = '<div class="home-empty">Could not load the calendar.</div>';
+    }
+}
+
+function renderHomeEvents(d) {
+    const wrap = document.getElementById('home-events');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    clearInterval(calendarCountdownInterval);
+
+    if (!d.connected) {
+        const msg = el('div', 'home-empty');
+        msg.append((d.message || 'Calendar not connected.') + ' ');
+        const link = el('span', 'home-setup-link', 'Open Settings');
+        link.addEventListener('click', () => switchTab('settings'));
+        msg.appendChild(link);
+        wrap.appendChild(msg);
+        return;
+    }
+
+    const events = (d.events || []).slice(0, 3);
+    if (!events.length) { wrap.appendChild(el('div', 'home-empty', 'No upcoming events.')); return; }
+
+    let firstSub = null;
+    events.forEach((ev, i) => {
+        const row = el('div', 'home-ev');
+        row.appendChild(el('div', 'home-ev-time', ev.all_day ? 'All day' : fmtTime(ev.start)));
+        const main = el('div', 'home-ev-main');
+        main.appendChild(el('div', 'home-ev-title', ev.title));
+        if (i === 0 && !ev.all_day) { firstSub = el('div', 'home-ev-sub'); main.appendChild(firstSub); }
+        row.appendChild(main);
+        wrap.appendChild(row);
+    });
+
+    if (firstSub) {
+        const start = new Date(events[0].start);
         const tick = () => {
-            const diff = nextStart - new Date();
+            const diff = start - new Date();
             if (diff > 0) {
                 const h = Math.floor(diff / 3600000), m = Math.floor((diff % 3600000) / 60000);
-                setText('event-countdown', 'In ' + (h > 0 ? h + 'h ' : '') + m + 'm');
+                firstSub.textContent = 'in ' + (h > 0 ? h + 'h ' : '') + m + 'm';
             } else {
-                setText('event-countdown', 'Now');
+                firstSub.textContent = 'now';
             }
         };
         tick();
-        clearInterval(calendarCountdownInterval);
         calendarCountdownInterval = setInterval(tick, 60000);
-    } catch {
-        setText('next-event', 'Failed to load');
-        setText('event-countdown', '');
     }
+}
+
+// Optional Home weather card (macOS Shortcut source). Hidden unless enabled.
+async function fetchWeather() {
+    const card = document.getElementById('home-weather-card');
+    if (!card) return;
+    try {
+        const d = await (await fetch('/api/weather')).json();
+        if (!d.enabled) { card.classList.add('hidden'); return; }
+        card.classList.remove('hidden');
+        setText('home-weather', d.available ? d.text : (d.message || 'Weather Shortcut not set up.'));
+    } catch {
+        card.classList.add('hidden');
+    }
+}
+
+// Subtle Home footer: server status, tablet URL, version, last refresh.
+async function fillHomeStatus() {
+    setText('home-ff-url', window.location.origin);
+    const vi = document.getElementById('version-indicator');
+    if (vi) setText('home-ff-version', vi.textContent.replace('FireFrame', '').trim() || '—');
+    try {
+        const s = await (await fetch('/api/status')).json();
+        setStatus('home-ff-server', s.message || 'Running', 'ok');
+    } catch {
+        setStatus('home-ff-server', 'Offline', 'off');
+    }
+}
+
+function setupHome() {
+    const copy = document.getElementById('home-copy-url');
+    if (copy) copy.addEventListener('click', copyTabletUrl);
+    const toggle = document.getElementById('home-timer-toggle');
+    if (toggle) toggle.addEventListener('click', toggleTimer);
+    const cancel = document.getElementById('home-timer-cancel');
+    if (cancel) cancel.addEventListener('click', cancelTimer);
+    const custom = document.getElementById('home-timer-custom');
+    if (custom) custom.addEventListener('click', () => openTimerModal(true));
 }
 
 // ============================================================
@@ -1344,11 +1461,15 @@ let tmrCustomOpen = false;   // is the custom-entry view showing? (view only)
 function setupTimer() {
     const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 
-    on('open-timer-btn', () => openTimerModal());     // home favourite
     on('timer-custom-btn', () => openTimerModal(true)); // Timers section "Custom"
 
+    // Buttons-page presets open the timer panel; Home presets start quietly
+    // (the Home timer card already shows the running state).
     document.querySelectorAll('.action-btn[data-timer]').forEach(btn => {
         btn.addEventListener('click', () => startTimerFor(parseInt(btn.getAttribute('data-timer'), 10)));
+    });
+    document.querySelectorAll('#home-timer-quick [data-timer]').forEach(btn => {
+        btn.addEventListener('click', () => startTimerFor(parseInt(btn.getAttribute('data-timer'), 10), null, false));
     });
     document.querySelectorAll('.timer-quick [data-quick]').forEach(btn => {
         btn.addEventListener('click', () => startTimerFor(parseInt(btn.getAttribute('data-quick'), 10)));
@@ -1396,7 +1517,7 @@ function presetName(mins) {
     return `${mins} min timer`;
 }
 
-function startTimerFor(mins, name) {
+function startTimerFor(mins, name, openModal = true) {
     if (!mins || mins < 1) return;
     tmrCustomOpen = false;
     tmrName = name || presetName(mins);
@@ -1404,8 +1525,7 @@ function startTimerFor(mins, name) {
     tmrRemaining = tmrTotal;
     tmrMode = 'running';
     runTimerInterval();
-    const m = timerModalEl();
-    if (m) m.classList.remove('hidden');
+    if (openModal) { const m = timerModalEl(); if (m) m.classList.remove('hidden'); }
     renderTimer();
     updateChip();
 }
@@ -1524,6 +1644,27 @@ function renderTimer() {
     if (box) box.classList.toggle('timer-done', tmrMode === 'finished');
 
     const toggle = document.getElementById('timer-toggle-btn');
+    if (toggle) {
+        toggle.textContent = tmrMode === 'paused' ? 'Resume' : 'Pause';
+        toggle.classList.toggle('hidden', tmrMode === 'finished');
+    }
+
+    renderHomeTimer();
+}
+
+// Mirror the timer state into the Home card: active controls vs quick-start.
+function renderHomeTimer() {
+    const active = document.getElementById('home-timer-active');
+    const quick = document.getElementById('home-timer-quick');
+    if (!active || !quick) return;
+    const running = ['running', 'paused', 'finished'].includes(tmrMode);
+    active.classList.toggle('hidden', !running);
+    quick.classList.toggle('hidden', running);
+    if (!running) return;
+    setText('home-timer-name', tmrMode === 'finished' ? `${tmrName} · Done` : tmrName);
+    setText('home-timer-time', fmtClock(tmrRemaining));
+    active.classList.toggle('timer-done', tmrMode === 'finished');
+    const toggle = document.getElementById('home-timer-toggle');
     if (toggle) {
         toggle.textContent = tmrMode === 'paused' ? 'Resume' : 'Pause';
         toggle.classList.toggle('hidden', tmrMode === 'finished');

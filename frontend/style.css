@@ -383,27 +383,33 @@ html, body {
 }
 
 /* ===================================================
-   HOME TAB
+   HOME TAB: at-a-glance card grid
    =================================================== */
-.home-layout {
+.home-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+    grid-auto-flow: row dense;
     gap: 0.8rem;
+    align-content: start;
+    padding-bottom: 0.5rem;
 }
-.home-left, .home-right {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-}
+.home-clock    { grid-column: span 2; }
+.home-events   { grid-column: span 2; }
+.home-actions  { grid-column: span 2; }
+.home-launcher { grid-column: span 2; }
+.home-ff       { grid-column: 1 / -1; }
 
 .clock-card {
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     background:
         radial-gradient(120% 140% at 50% -20%, rgba(10, 132, 255, 0.18), transparent 60%),
         var(--surface);
 }
 .clock {
-    font-size: clamp(2.8rem, 6.5vw, 4.2rem);
+    font-size: clamp(2.6rem, 6vw, 3.8rem);
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1;
@@ -414,36 +420,93 @@ html, body {
     margin-top: 0.35rem;
 }
 
-.event-card .event-title-main {
-    font-weight: 600;
-    font-size: clamp(1.05rem, 1.8vw, 1.25rem);
-}
-.event-countdown {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--primary);
-    margin-top: 0.3rem;
-}
+/* Shared card head: a label with a small action on the right */
+.card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+.card-head .card-label { margin-bottom: 0; }
+.ghost-btn { background: transparent; color: var(--muted); font-size: 0.78rem; min-height: 34px; padding: 0.35rem 0.8rem; }
+@media (hover: hover) and (pointer: fine) { .ghost-btn:hover { color: var(--text); background: var(--surface2); } }
 
-/* Stat / status rows */
-.stats-row {
+/* Up Next */
+.home-events-list { display: flex; flex-direction: column; gap: 0.55rem; }
+.home-ev { display: flex; gap: 0.7rem; align-items: baseline; }
+.home-ev-time { font-size: 0.78rem; font-weight: 700; color: var(--primary); min-width: 58px; font-variant-numeric: tabular-nums; }
+.home-ev-main { min-width: 0; }
+.home-ev-title { font-size: 0.92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-ev-sub { font-size: 0.72rem; color: var(--muted); }
+.home-empty { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+.home-setup-link { color: var(--primary); cursor: pointer; }
+
+/* Mac meters */
+.meter { margin-bottom: 0.5rem; }
+.meter-top { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem; }
+.meter-top span:first-child { color: var(--muted); }
+.meter-top span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+.bar { height: 6px; background: var(--surface2); border-radius: var(--pill); overflow: hidden; }
+.bar-fill { height: 100%; width: 0; background: var(--primary); border-radius: var(--pill); transition: width 0.4s ease, background 0.3s ease; }
+.bar-fill.warn { background: #ff9f0a; }
+.bar-fill.crit { background: var(--danger); }
+.home-mac-foot { display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 0.55rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.home-mac-foot span:first-child { color: var(--muted); }
+.home-mac-foot span:last-child { font-weight: 600; }
+
+/* Bluetooth summary */
+.home-bt-status { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+.home-bt-devices { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.5rem; }
+.home-bt-dev { font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-bt-open { width: 100%; }
+
+/* Timer card */
+.home-timer-active { text-align: center; }
+.home-timer-name { font-size: 0.8rem; color: var(--muted); }
+.home-timer-time { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.15; }
+.home-timer-active.timer-done .home-timer-time { color: var(--green); }
+.home-timer-controls { display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; }
+.home-timer-quick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; }
+.home-timer-quick .btn { padding: 0.5rem 0; min-height: 44px; }
+
+/* Weather */
+.home-weather-text { font-size: 1.05rem; font-weight: 600; }
+
+/* Quick actions + launcher: compact tiles */
+.home-mini-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 0.5rem; }
+.mini-btn {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
-    font-size: 0.95rem;
-    padding: 0.4rem 0;
-    border-bottom: 1px solid var(--border);
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.6rem 0.3rem;
+    min-height: 64px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 1.3rem;          /* emoji glyph */
+    cursor: pointer;
+    box-shadow: var(--glass-edge);
+    transition: transform 0.12s ease, background 0.16s ease, border-color 0.16s ease;
 }
-.stats-row:last-child { border-bottom: none; }
-.stats-row span:first-child { color: var(--muted); }
-.stats-row span:last-child  { font-weight: 600; font-variant-numeric: tabular-nums; }
+.mini-btn span {
+    font-size: 0.66rem;
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+.mini-btn:active { transform: scale(0.94); background: rgba(10, 132, 255, 0.18); border-color: rgba(10, 132, 255, 0.5); }
+.mini-btn.btn-busy { opacity: 0.6; pointer-events: none; animation: btnPulse 1s ease-in-out infinite; }
+.mini-danger { background: rgba(255, 69, 58, 0.14); border-color: rgba(255, 69, 58, 0.3); }
+@media (hover: hover) and (pointer: fine) { .mini-btn:hover { background: var(--surface-hover); border-color: var(--border-strong); } }
 
-.home-favs {
-    grid-column: span 2;
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.8rem;
-}
+/* FireFrame status: subtle one-line footer */
+.home-ff { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1.4rem; }
+.home-ff-item { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.8rem; }
+.home-ff-item > span:first-child { color: var(--muted-2); text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.66rem; }
+.home-ff-url { flex: 1; min-width: 0; }
+.home-ff-url .url-text { text-align: left; }
+.home-ff #home-copy-url { margin-left: auto; }
 
 /* ===================================================
    ACTION TILES (deck buttons)
@@ -908,9 +971,8 @@ html, body {
    RESPONSIVE
    =================================================== */
 /* Fire HD 8 lands around ~960×600 CSS px; phones / narrow windows below. */
-@media (max-width: 640px) {
-    .home-layout { grid-template-columns: 1fr; }
-    .home-favs   { grid-column: auto; grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 540px) {
+    .home-clock, .home-events, .home-actions, .home-launcher { grid-column: auto; }
 }
 
 /* Respect reduced-motion preferences */

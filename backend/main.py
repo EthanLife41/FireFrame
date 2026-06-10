@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from backend.auth import create_session_token, get_current_user, SESSION_MAX_AGE_SECONDS
 from backend.config_loader import DASHBOARD_PASSWORD
-from backend.actions import handle_action, notify_timer_done
+from backend.actions import handle_action, notify_timer_done, get_weather
 from backend.bluetooth import (
     handle_bluetooth_action,
     get_bluetooth_status,
@@ -206,6 +206,10 @@ async def settings_status(user: bool = Depends(get_current_user)):
 @app.post("/api/timer/notify")
 async def timer_notify(req: TimerNotifyRequest, user: bool = Depends(get_current_user)):
     return notify_timer_done(req.minutes, req.label)
+
+@app.get("/api/weather")
+async def weather(user: bool = Depends(get_current_user)):
+    return get_weather()
 
 @app.post("/api/photos/open")
 async def photos_open(user: bool = Depends(get_current_user)):

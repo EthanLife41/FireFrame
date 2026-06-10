@@ -34,6 +34,13 @@ PHOTO_INTERVAL_SECONDS = int(os.getenv("PHOTO_INTERVAL_SECONDS", "30"))
 # from /System/Library/Sounds (Glass, Tink, Pop, Ping, Purr...). "" = silent.
 TIMER_SOUND = os.getenv("TIMER_SOUND", "Glass")
 
+# --- Weather (optional) ---
+# Off by default. When on, the Home weather card runs a macOS Shortcut that
+# returns a short weather string (e.g. "18C Partly Cloudy"). No API key, and
+# the location/units live inside your Shortcut, not here. See the README.
+WEATHER_ENABLED = os.getenv("WEATHER_ENABLED", "0") not in ("0", "false", "False", "")
+WEATHER_SHORTCUT = os.getenv("WEATHER_SHORTCUT", "FireFrame Weather")
+
 # --- Bluetooth ---
 # Connect/disconnect needs the optional 'blueutil' tool. Set to 0 to disable
 # those actions entirely (listing/status still work).
@@ -80,6 +87,15 @@ SHORTCUT_ACTIONS = {
     "gpt":              {"type": "open_app_or_url", "app": "ChatGPT",
                          "url": "https://chatgpt.com/", "label": "ChatGPT"},
     "wallpapers":       {"type": "open_app", "app": "iWallpaper"},
+    # App launcher (Home "Open App" row). Change the app names to match yours.
+    "launch_chrome":    {"type": "open_app", "app": "Google Chrome"},
+    "launch_vscode":    {"type": "open_app", "app": "Visual Studio Code"},
+    "launch_terminal":  {"type": "open_app", "app": "Terminal"},
+    "launch_notes":     {"type": "open_app", "app": "Notes"},
+    "launch_finder":    {"type": "open_app", "app": "Finder"},
+    "bluetooth_settings": {"type": "open_url",
+                           "url": "x-apple.systempreferences:com.apple.BluetoothSettings",
+                           "label": "Bluetooth Settings"},
     "prepare":          {"type": "prepare"},
 }
 

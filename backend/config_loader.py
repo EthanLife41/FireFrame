@@ -46,6 +46,15 @@ _SHORTCUT_ACTIONS_DEFAULT = {
     "gpt":            {"type": "open_app_or_url", "app": "ChatGPT",
                        "url": "https://chatgpt.com/", "label": "ChatGPT"},
     "wallpapers":     {"type": "open_app", "app": "iWallpaper"},
+    # App launcher (Home "Open App" row). Edit the app names to match yours.
+    "launch_chrome":    {"type": "open_app", "app": "Google Chrome"},
+    "launch_vscode":    {"type": "open_app", "app": "Visual Studio Code"},
+    "launch_terminal":  {"type": "open_app", "app": "Terminal"},
+    "launch_notes":     {"type": "open_app", "app": "Notes"},
+    "launch_finder":    {"type": "open_app", "app": "Finder"},
+    "bluetooth_settings": {"type": "open_url",
+                           "url": "x-apple.systempreferences:com.apple.BluetoothSettings",
+                           "label": "Bluetooth Settings"},
     # FireFrame
     "prepare":        {"type": "prepare"},
 }
@@ -74,6 +83,11 @@ _DEFAULTS = {
     # A name from /System/Library/Sounds (e.g. Glass, Tink, Pop, Ping). Set
     # to "" for a silent (banner-only) notification.
     "TIMER_SOUND": os.getenv("TIMER_SOUND", "Glass"),
+    # Weather (optional, off by default). When on, the Home weather card runs a
+    # macOS Shortcut that returns a short weather string: no API key, and the
+    # location/units stay inside your Shortcut, not the repo. See the README.
+    "WEATHER_ENABLED": _flag("WEATHER_ENABLED", "0"),
+    "WEATHER_SHORTCUT": os.getenv("WEATHER_SHORTCUT", "FireFrame Weather"),
     # Bluetooth
     "BLUETOOTH_ALLOW_CONNECT": _flag("BLUETOOTH_ALLOW_CONNECT"),
     "BLUEUTIL_PATH": os.getenv("BLUEUTIL_PATH", ""),

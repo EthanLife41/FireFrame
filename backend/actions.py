@@ -8,8 +8,16 @@ prepare) are small fixed commands. shell=True is never used.
 
 import re
 import subprocess
+import time
 
-from backend.config_loader import SHORTCUT_ACTIONS, PREPARE_APPS, PREPARE_URLS, TIMER_SOUND
+from backend.config_loader import (
+    SHORTCUT_ACTIONS,
+    PREPARE_APPS,
+    PREPARE_URLS,
+    TIMER_SOUND,
+    WEATHER_ENABLED,
+    WEATHER_SHORTCUT,
+)
 
 _LABEL_RE = re.compile(r"[^A-Za-z0-9 ]+")   # notification text: letters/digits/spaces only
 _SOUND_RE = re.compile(r"[^A-Za-z0-9]+")    # macOS sound name: letters/digits only
@@ -134,6 +142,41 @@ def notify_timer_done(minutes, label="") -> dict:
         return {"success": False, "message": "Could not post the notification."}
     except subprocess.TimeoutExpired:
         return {"success": False, "message": "Notification timed out."}
+
+
+_weather_cache = {"ts": 0.0, "data": None}
+
+
+def get_weather() -> dict:
+    """Weather for the Home card, sourced from a user-built macOS Shortcut that
+    prints a short string. Off unless WEATHER_ENABLED. Cached so the Shortcut
+    runs at most a couple of times an hour."""
+    if not WEATHER_ENABLED:
+        return {"enabled": False}
+
+    cached = _weather_cache["data"]
+    if cached is not None:
+        ttl = 1800 if cached.get("available") else 300
+        if (time.time() - _weather_cache["ts"]) < ttl:
+            return cached
+
+    data = {"enabled": True, "available": False,
+            "message": f'Create a "{WEATHER_SHORTCUT}" Shortcut that outputs the weather.'}
+    try:
+        proc = subprocess.run(["shortcuts", "run", WEATHER_SHORTCUT, "--output-path", "-"],
+                              capture_output=True, text=True, timeout=15)
+        text = (proc.stdout or "").strip()
+        if proc.returncode == 0 and text:
+            data = {"enabled": True, "available": True, "text": text[:80]}
+    except FileNotFoundError:
+        data = {"enabled": True, "available": False, "message": "Shortcuts is macOS only."}
+    except subprocess.TimeoutExpired:
+        data = {"enabled": True, "available": False, "message": "Weather Shortcut timed out."}
+    except OSError:
+        data = {"enabled": True, "available": False, "message": "Could not run the weather Shortcut."}
+
+    _weather_cache.update(ts=time.time(), data=data)
+    return data
 
 
 def handle_action(action_id: str, params: dict) -> dict:

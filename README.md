@@ -10,6 +10,7 @@ Run it on your **local network only**. Do not port-forward it or expose it to th
 
 ## Features
 
+- **Home:** an at-a-glance dashboard with clock, upcoming events, Mac meters, Bluetooth, a timer, quick actions, and an app launcher.
 - **Buttons:** large touch tiles that trigger macOS Shortcuts or open apps and URLs.
 - **Bluetooth:** a Control-Center-style device list (built-in `system_profiler`), with connect/disconnect when `blueutil` is present.
 - **Calendar:** today and upcoming events from Apple Calendar, a local or remote `.ics`, or demo data.
@@ -151,6 +152,27 @@ osascript -e 'display notification "25-minute timer finished" with title "FireFr
 ```
 
 Change or silence the sound with `TIMER_SOUND` in `backend/config.py` (any name from `/System/Library/Sounds`, e.g. `Tink`, `Pop`, `Ping`; set `""` for a silent banner). To prefer Shortcut-based presets instead, you can still add `data-action` buttons that map to `{"type": "shortcut", ...}` entries — but the built-in timer is recommended because it handles custom durations and stays gentle.
+
+## Home screen
+
+Home is the at-a-glance dashboard. Each widget reuses an existing route, so it adds no new polling beyond what the app already does:
+
+- **Clock / date**, **Up Next** (next 3 events from `/api/calendar/upcoming`), **Mac** (CPU / memory / storage / battery meters + uptime from `/api/stats`), and **Bluetooth** (status + connected device names from `/api/bluetooth/devices`).
+- **Timer** card: quick presets (5/15/25/45) and Custom; shows the running timer with pause/cancel inline. Same single timer as the Buttons page.
+- **Quick Actions** and **Open App**: compact tiles that call the `/api/action` registry. The launcher apps live in `SHORTCUT_ACTIONS` (`launch_chrome`, `launch_vscode`, `launch_terminal`, `launch_notes`, `launch_finder`, `bluetooth_settings`, plus Spotify/ChatGPT/Display/iWallpaper). Rename the `app` values in `backend/config.py` to match your machine; an app that isn't installed shows a clean error.
+- **Status footer**: server state, tablet URL (with Copy), version, and last refresh.
+
+Refresh cadence is unchanged: stats every 15s, Bluetooth every 30s, and all polling pauses when the tablet screen is hidden.
+
+### Weather (optional, off by default)
+
+There's no API-key-free system weather CLI on macOS, so FireFrame reads weather from a **Shortcut you own** — no third-party API, and your location/units stay inside the Shortcut, not the repo.
+
+1. In the Shortcuts app, create a shortcut named **FireFrame Weather** that ends by outputting a short string, e.g. *Get Current Weather → Text "(Temperature) (Conditions)" → Stop and output*.
+2. Test it: `shortcuts run "FireFrame Weather" --output-path -` should print the string.
+3. Enable it: set `WEATHER_ENABLED=1` (env or `backend/config.py`). Optionally change the name with `WEATHER_SHORTCUT`.
+
+The result is cached for ~30 minutes, so the Shortcut runs at most a couple of times an hour. When disabled the card is hidden entirely.
 
 ## Fire tablet (Fully Kiosk Browser)
 
