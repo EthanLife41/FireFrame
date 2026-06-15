@@ -4,13 +4,13 @@
 
 # FireFrame
 
-FireFrame turns a cheap Amazon Fire tablet into a wall- or desk-mounted control panel for your Mac: big touch buttons that trigger macOS Shortcuts and apps, live system stats, a Bluetooth device picker, your calendar, timers, and a photo slideshow. The server runs on the Mac; the tablet is just a browser pointed at it over your local Wi-Fi.
+FireFrame turns a cheap Amazon Fire tablet into a wall- or desk-mounted control panel for your Mac. Has things like buttons to trigger macOS Shortcuts and apps, live system stats, a Bluetooth device picker, your calendar, timers, and a photo slideshow. The server runs on the Mac, but the tablet is just a browser pointed at it over your local Wi-Fi.
 
 It is macOS-first. On other systems the UI still runs, but the macOS-specific features (Bluetooth, Calendar, Shortcuts) show a clear "unavailable" state.
 
 ## Why I built this
 
-I got a Fire HD 8 for almost nothing during a sale. Fire OS is too locked down and the hardware too slow to make it a good tablet, but it has a fine screen and Wi-Fi, which is all you need for a screen that sits on a stand and does one job. I wanted an [Elgato Stream Deck](https://www.elgato.com/stream-deck) without buying one, so I built a small web app the tablet could display full-screen and used it to drive Focus modes, app launches, and a calendar glance on my Mac. FireFrame is that project, cleaned up.
+I got a Fire HD 8 for free. Fire OS is too locked down and the hardware too slow to make it a good tablet, but it has a fine screen and Wi-Fi, which is all you need for a screen that sits on a stand and does one job. I wanted something like a streamdeck without buying one, so I built a small web app the tablet could display full-screen and used it to drive Focus modes, app launches, and a calendar glance on my Mac. FireFrame is that project, cleaned up.
 
 ## Features
 
@@ -30,9 +30,9 @@ Treat the tablet as untrusted and do not sign it into personal accounts. Run Fir
 
 ## Requirements
 
-- A Mac for the full feature set (the server is fine on Linux for development).
+- A Mac for the full feature set.
 - Python 3.10+.
-- A tablet or any device with a browser. The Fire tablet uses [Fully Kiosk Browser](https://www.fully-kiosk.com/), since Silk and Chrome cannot reliably stay full-screen.
+- A tablet or any device with a browser. The Fire tablet uses [Fully Kiosk Browser](https://www.fully-kiosk.com/) in order to keep the tablet fully fullscreen.
 - Optional: [`blueutil`](https://github.com/toy/blueutil) for Bluetooth connect/disconnect, and `pyobjc-framework-EventKit` for fast Apple Calendar reads.
 
 ## Setup
@@ -46,7 +46,7 @@ cp .env.example .env      # then set DASHBOARD_PASSWORD and SESSION_SECRET
 ./scripts/start.sh        # serves on 0.0.0.0:8765
 ```
 
-Find your Mac's LAN IP (System Settings > Wi-Fi > Details, something like `192.168.x.x`) and open `http://<MAC_IP>:8765` on the tablet.
+Find your Mac's LAN IP (System Settings > Wi-Fi > Details, something like `x.x.x.x`) and open `http://<MAC_IP>:8765` on the tablet.
 
 - The login PIN is your `DASHBOARD_PASSWORD`. A 4-digit value works with the on-screen keypad; longer passwords use the keyboard fallback.
 - `.env` is read once at startup, so restart the server after editing it.
@@ -78,7 +78,7 @@ Everything is set in `.env` (copied from `.env.example`). Nothing personal is co
 
 Set `CALENDAR_SOURCE`, restart, and open the Calendar tab. It is a schedule grid with Day and Week views (Week by default): a Today button, prev/next navigation, a time axis, event blocks placed by time, and a separate all-day row. When more than one calendar has events, filter chips appear so you can hide or show each one.
 
-**Apple Calendar (`apple`) is the recommended source.** It reads every calendar in Calendar.app (including Google accounts you have added there) and expands recurring events.
+**Apple Calendar (`apple`) is the recommended source.** It reads every calendar in Calendar.app (including Google accounts if added there) and expands recurring events.
 
 1. Set `CALENDAR_SOURCE=apple`.
 2. Install the fast reader (macOS only) into the same environment that runs the server: `./.venv/bin/python -m pip install pyobjc-framework-EventKit`. Without it, FireFrame falls back to a slower AppleScript path that can time out on large calendars.
@@ -103,9 +103,6 @@ Connect/disconnect needs [`blueutil`](https://github.com/toy/blueutil):
 
 ```bash
 brew install blueutil
-# or build it into the project (auto-detected, bin/ is gitignored):
-git clone https://github.com/toy/blueutil /tmp/blueutil && make -C /tmp/blueutil
-mkdir -p bin && cp /tmp/blueutil/blueutil bin/
 ```
 
 `blueutil` acts on already-paired devices, so pair new ones in macOS Bluetooth settings first. You can also point `BLUEUTIL_PATH` at an explicit location. Bluetooth control is macOS-only.
@@ -211,8 +208,27 @@ fireframe.command     double-click launcher for macOS
 
 ## Running without a terminal (macOS)
 
-- `fireframe.command`: double-click in Finder to start the server (first run: right-click then Open). It prints the tablet URL and can be dragged to the Dock.
+- `fireframe.command`: double-click in Finder to start the server. It prints the tablet URL and can be dragged to the Dock.
 - Login agent: `scripts/launchd/` has an example `launchd` plist to start the server at login. Copy it to `~/Library/LaunchAgents/`, set the absolute path to `scripts/start.sh`, and load it with `launchctl`.
+
+## Make it an app in your Applications folder
+
+You can wrap the launcher in a real `.app` so FireFrame lives in `/Applications` with its own icon and opens from Spotlight, Launchpad, and Dock.
+
+1. Open **Automator** and create a new document of type **Application**.
+2. Add a **Run Shell Script** action and paste this, using the path to where you cloned FireFrame:
+   ```bash
+   open "$HOME/path/to/FireFrame/fireframe.command"
+   ```
+   This reuses the existing launcher, so the server still opens in Terminal and prints the tablet URL. Close that window (or press Ctrl-C) to stop it.
+
+3. Save it as **FireFrame Launcher** into your Applications folder.
+
+In order to **give it the FireFrame icon**:
+
+1. Open FireFrame_Logo.png in Preview and copy it (Cmd-C).
+2. Select FireFrame.app in Finder and open Get Info.
+3. Click the small icon in the top-left of the Info window and paste (Cmd-V)
 
 ## Developing on another machine
 
@@ -233,15 +249,3 @@ To reach a remote dev box without exposing a port: `ssh -L 8765:127.0.0.1:8765 <
 - Calendar error: for `apple`, grant Calendar/Automation permission; otherwise use an `.ics` source.
 - Bluetooth connect greyed out: install `blueutil` (or drop the binary in `./bin/`) and restart. Listing and status work without it.
 - Remove a button: delete its entry from `SHORTCUT_ACTIONS` in `backend/config.py`.
-
-## Before publishing
-
-- [ ] `.env` and `backend/config.py` are not committed.
-- [ ] No personal photos in `photos/` (only its `README.md`).
-- [ ] No personal URLs, IPs, or Bluetooth identifiers in committed files.
-- [ ] No `*.ics`, logs, or `__pycache__` committed.
-- [ ] Add a license (see below).
-
-## License
-
-This repository does not include a license yet. Add one before publishing; MIT is a reasonable default for a project like this.
