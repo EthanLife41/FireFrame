@@ -3,6 +3,7 @@
 </p>
 
 # FireFrame
+
 ![tests](https://github.com/EthanLife41/FireFrame/actions/workflows/tests.yml/badge.svg)
 
 FireFrame turns a cheap Amazon Fire tablet into a wall- or desk-mounted control panel for your Mac. Has things like buttons to trigger macOS Shortcuts and apps, live system stats, a Bluetooth device picker, your calendar, timers, and a photo slideshow. The server runs on the Mac, but the tablet is just a browser pointed at it over your local Wi-Fi.
