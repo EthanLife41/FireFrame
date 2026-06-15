@@ -1,182 +1,175 @@
+<p align="center">
+  <img src="FireFrame_Logo.png" alt="FireFrame" width="120">
+</p>
+
 # FireFrame
 
-A local dashboard that turns an Amazon Fire HD 8 tablet into a desk control panel for your Mac: large touch buttons, live Mac stats, a Bluetooth device picker, your calendar, and a photo slideshow. FireFrame runs on your Mac; the tablet just displays it over your local Wi-Fi.
+FireFrame turns a cheap Amazon Fire tablet into a wall- or desk-mounted control panel for your Mac: big touch buttons that trigger macOS Shortcuts and apps, live system stats, a Bluetooth device picker, your calendar, timers, and a photo slideshow. The server runs on the Mac; the tablet is just a browser pointed at it over your local Wi-Fi.
 
-## How it works and security
+It is macOS-first. On other systems the UI still runs, but the macOS-specific features (Bluetooth, Calendar, Shortcuts) show a clear "unavailable" state.
 
-The Fire tablet is treated as **untrusted**. It should not be signed into any personal accounts. The tablet only shows the UI and sends fixed action IDs (like `toggle_dnd`); the Mac validates each ID and runs a small allowlist of commands. The tablet can never run arbitrary commands.
+## Why I built this
 
-Run it on your **local network only**. Do not port-forward it or expose it to the internet. See `SECURITY.md` for the full model.
+I got a Fire HD 8 for almost nothing during a sale. Fire OS is too locked down and the hardware too slow to make it a good tablet, but it has a fine screen and Wi-Fi, which is all you need for a screen that sits on a stand and does one job. I wanted an [Elgato Stream Deck](https://www.elgato.com/stream-deck) without buying one, so I built a small web app the tablet could display full-screen and used it to drive Focus modes, app launches, and a calendar glance on my Mac. FireFrame is that project, cleaned up.
 
 ## Features
 
-- **Home:** an at-a-glance dashboard with clock, upcoming events, Mac meters, Bluetooth, a timer, quick actions, and an app launcher.
-- **Buttons:** large touch tiles that trigger macOS Shortcuts or open apps and URLs.
-- **Bluetooth:** a Control-Center-style device list (built-in `system_profiler`), with connect/disconnect when `blueutil` is present.
-- **Calendar:** today and upcoming events from Apple Calendar, a local or remote `.ics`, or demo data.
-- **Photos:** a slideshow with shuffle, pause, lock-on-photo, and prev/next/random.
-- **Mac stats:** CPU, RAM, battery, and uptime.
-- **Timers:** preset (5/15/25/45 min) and custom countdowns with a gentle macOS notification on completion.
+- **Home** is the dashboard: clock, next calendar events, CPU/memory/storage/battery meters, Bluetooth status, an inline timer, quick actions, and an app launcher.
+- **Buttons** is the full control deck, grouped into Focus modes, Mac controls, app launches, timers, and maintenance.
+- **Bluetooth** lists paired devices and connects/disconnects them (with `blueutil` installed).
+- **Calendar** shows a day/week schedule grid from Apple Calendar, an `.ics` file or URL, or demo data.
+- **Stats** is a live view of CPU, memory, storage, battery, network throughput, and top processes.
+- **Photos** is a slideshow with shuffle, pause, lock, and manual navigation.
+- **Timers** are preset or custom countdowns that finish with a quiet macOS notification.
 
-> FireFrame targets **macOS**. Bluetooth and Calendar use macOS tools; on other systems they show a clear "unavailable / not connected" state so you can still work on the UI.
+## How it works
 
-## Quick start (macOS)
+The browser never sends commands. It sends a fixed action key (for example `dnd`), and the server looks that key up in an allowlist (`SHORTCUT_ACTIONS`) and runs the matching `shortcuts run`, `open`, or small built-in command. There is no `shell=True` anywhere, and every endpoint requires a signed session cookie.
+
+Treat the tablet as untrusted and do not sign it into personal accounts. Run FireFrame on a trusted LAN only; never port-forward it or put it behind a public tunnel. See [SECURITY.md](SECURITY.md) for the full model.
+
+## Requirements
+
+- A Mac for the full feature set (the server is fine on Linux for development).
+- Python 3.10+.
+- A tablet or any device with a browser. The Fire tablet uses [Fully Kiosk Browser](https://www.fully-kiosk.com/), since Silk and Chrome cannot reliably stay full-screen.
+- Optional: [`blueutil`](https://github.com/toy/blueutil) for Bluetooth connect/disconnect, and `pyobjc-framework-EventKit` for fast Apple Calendar reads.
+
+## Setup
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-cp .env.example .env          # then set DASHBOARD_PASSWORD and SESSION_SECRET
-./scripts/start.sh            # serves on 0.0.0.0:8765
+cp .env.example .env      # then set DASHBOARD_PASSWORD and SESSION_SECRET
+./scripts/start.sh        # serves on 0.0.0.0:8765
 ```
 
-Find your Mac's LAN IP (System Settings > Wi-Fi > Details, e.g. `192.168.x.x`) and open `http://<MAC_IP>:8765` on the tablet.
+Find your Mac's LAN IP (System Settings > Wi-Fi > Details, something like `192.168.x.x`) and open `http://<MAC_IP>:8765` on the tablet.
 
-- The login PIN is your `DASHBOARD_PASSWORD`. Use a 4-digit value for the keypad; a keyboard fallback handles longer passwords.
-- `.env` is read only at startup, so restart the server after editing it.
-- Optional: `cp backend/config.example.py backend/config.py` to customize buttons, "prepare laptop" URLs, and Bluetooth device labels.
+- The login PIN is your `DASHBOARD_PASSWORD`. A 4-digit value works with the on-screen keypad; longer passwords use the keyboard fallback.
+- `.env` is read once at startup, so restart the server after editing it.
+- To customize buttons, the app launcher, or the Prepare apps and links, copy `backend/config.example.py` to `backend/config.py` (gitignored) and edit it there.
 
 ## Configuration
 
-Set these in `.env` (copied from `.env.example`). Nothing personal is committed.
+Everything is set in `.env` (copied from `.env.example`). Nothing personal is committed.
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `DASHBOARD_PASSWORD` | `change-me` | Login PIN / password |
-| `SESSION_SECRET` | `change-this-random-string` | Signs the session cookie (use a long random value) |
+| `SESSION_SECRET` | `change-this-random-string` | Signs the session cookie; use a long random value |
 | `PORT` | `8765` | Server port |
 | `CALENDAR_SOURCE` | `none` | `none`, `demo`, `ics`, or `apple` |
-| `CALENDAR_ICS_PATH` | _(empty)_ | `.ics` file path or https URL (used by `ics`) |
-| `CALENDAR_ICS_PATHS` | _(empty)_ | Several `.ics` paths at once, `:`-separated |
+| `CALENDAR_ICS_PATH` | empty | `.ics` file path or https URL (for `ics`) |
+| `CALENDAR_ICS_PATHS` | empty | Several `.ics` paths at once, `:`-separated |
 | `CALENDAR_UPCOMING_DAYS` | `7` | Days ahead the Home card looks |
 | `CALENDAR_REFRESH_SECONDS` | `300` | How long calendar reads are cached |
-| `PHOTOS_DIR` | _(empty, uses `./photos`)_ | Folder to read photos from |
+| `PHOTOS_DIR` | empty (uses `./photos`) | Folder to read photos from |
 | `PHOTO_INTERVAL_SECONDS` | `30` | Slideshow interval |
 | `BLUETOOTH_ALLOW_CONNECT` | `1` | Set `0` to disable connect/disconnect |
-| `BLUEUTIL_PATH` | _(empty)_ | Path to blueutil (auto-detected if empty) |
+| `BLUEUTIL_PATH` | empty | Path to blueutil (auto-detected if empty) |
+| `TIMER_SOUND` | `Glass` | macOS sound for the timer notification; `""` for silent |
+| `WEATHER_ENABLED` | `0` | Set `1` to show the optional weather card |
+| `WEATHER_SHORTCUT` | `FireFrame Weather` | Shortcut that prints the weather string |
 
-## Calendar setup
+## Calendar
 
-Set `CALENDAR_SOURCE`, restart, and open the Calendar tab. The Calendar tab is a schedule grid with **Day** and **Week** views (Week is the default): a Today button, previous/next navigation, a time axis, rounded event blocks placed by time, and an all-day row. When more than one calendar has events, source-filter chips appear so you can hide or show each one.
+Set `CALENDAR_SOURCE`, restart, and open the Calendar tab. It is a schedule grid with Day and Week views (Week by default): a Today button, prev/next navigation, a time axis, event blocks placed by time, and a separate all-day row. When more than one calendar has events, filter chips appear so you can hide or show each one.
 
-**Apple Calendar (`apple`) is the recommended option.** It reads every accessible calendar in macOS Calendar.app (including Google accounts you have added there) and handles recurring events.
+**Apple Calendar (`apple`) is the recommended source.** It reads every calendar in Calendar.app (including Google accounts you have added there) and expands recurring events.
 
 1. Set `CALENDAR_SOURCE=apple`.
-2. **Install the fast reader (recommended, macOS only):** `./.venv/bin/python -m pip install pyobjc-framework-EventKit` (into the same environment that runs the server). FireFrame uses EventKit when present and otherwise falls back to a much slower AppleScript path that can time out on large calendars.
-3. Restart. The first load asks for **Calendar** access; approve it. If it does not appear or it errors, enable it under **System Settings > Privacy & Security > Calendars** (and **Automation** if you are on the AppleScript fallback). The grant attaches to whatever launches the server, so re-approve if you change launcher.
+2. Install the fast reader (macOS only) into the same environment that runs the server: `./.venv/bin/python -m pip install pyobjc-framework-EventKit`. Without it, FireFrame falls back to a slower AppleScript path that can time out on large calendars.
+3. Restart. The first load asks for Calendar access; approve it. If it errors, enable it under System Settings > Privacy & Security > Calendars (and Automation if you are on the AppleScript fallback). The grant attaches to whatever launches the server, so re-approve if you change how you start it.
 
-To include Google here, add the account in Calendar.app (**Settings > Accounts > + > Google**).
+**ICS file or URL (`ics`)** suits a single calendar without Calendar.app. For Google, open the calendar's Settings and sharing > Integrate calendar > Secret address in iCal format, then:
 
-**ICS file or URL (`ics`)** is good for a single Google calendar without Calendar.app.
-
-- Google: in Google Calendar (web), open the calendar's **Settings and sharing > Integrate calendar > Secret address in iCal format**, then set:
-  ```
-  CALENDAR_SOURCE=ics
-  CALENDAR_ICS_PATH=https://calendar.google.com/calendar/ical/.../basic.ics
-  ```
-- Or point `CALENDAR_ICS_PATH` at a local `.ics` file you export.
-- For several calendars at once, list them in `CALENDAR_ICS_PATHS`, separated by `:` (each file's name becomes its source label).
-
-That URL is a credential: keep it in `.env` (gitignored) and never commit it. The built-in parser does not expand recurring events, so for recurring-heavy calendars prefer `apple`.
-
-**demo / none.** `demo` shows placeholder events; `none` (the default) shows "not connected".
-
-## Bluetooth setup
-
-Listing and status work out of the box on macOS via `system_profiler` (read-only, no extra tools). Real device addresses stay on the Mac; the tablet only ever sees a token per device.
-
-Connect/disconnect needs the small [`blueutil`](https://github.com/toy/blueutil) CLI:
-
-```bash
-# Homebrew (simplest):
-brew install blueutil
-
-# Or keep it inside the project, no global install:
-git clone https://github.com/toy/blueutil /tmp/blueutil
-make -C /tmp/blueutil
-mkdir -p bin && cp /tmp/blueutil/blueutil bin/   # FireFrame auto-detects ./bin/blueutil
+```
+CALENDAR_SOURCE=ics
+CALENDAR_ICS_PATH=https://calendar.google.com/calendar/ical/.../basic.ics
 ```
 
-`bin/` is gitignored. You can also set `BLUEUTIL_PATH` to an explicit location. blueutil acts on already-paired devices, so pair new ones in macOS Bluetooth settings first. Bluetooth control is macOS-only.
+That URL is a credential. Keep it in `.env` (gitignored) and never commit it. The built-in parser does not expand recurring events, so prefer `apple` for recurring-heavy calendars. For several calendars at once, list paths in `CALENDAR_ICS_PATHS` separated by `:`.
+
+**`demo`** shows placeholder events; **`none`** (the default) shows "not connected".
+
+## Bluetooth
+
+Listing and status work out of the box via `system_profiler` (read-only, no extra tools). Real device addresses stay on the Mac; the tablet only sees an opaque token per device.
+
+Connect/disconnect needs [`blueutil`](https://github.com/toy/blueutil):
+
+```bash
+brew install blueutil
+# or build it into the project (auto-detected, bin/ is gitignored):
+git clone https://github.com/toy/blueutil /tmp/blueutil && make -C /tmp/blueutil
+mkdir -p bin && cp /tmp/blueutil/blueutil bin/
+```
+
+`blueutil` acts on already-paired devices, so pair new ones in macOS Bluetooth settings first. You can also point `BLUEUTIL_PATH` at an explicit location. Bluetooth control is macOS-only.
+
+## Buttons and shortcuts
+
+Every button maps to an entry in the `SHORTCUT_ACTIONS` registry (defaults in `backend/config_loader.py`, overridable in `backend/config.py`). Supported action types are `shortcut` (run a macOS Shortcut by name), `open_app`, `open_url`, `open_app_or_url`, and a few fixed commands (`mute`, `sleep_mac`, `prepare`).
+
+Focus modes have no command-line equivalent on macOS, so they go through Shortcuts you create in the Shortcuts app. Everything else works out of the box.
+
+| Button | What it does | How | Setup |
+|---|---|---|---|
+| DND | Do Not Disturb / Focus | Shortcut | Create `FireFrame DND` |
+| Locked In | Deep-work Focus | Shortcut | Create `FireFrame Locked In` |
+| Presentation | Presentation Focus | Shortcut | Create `FireFrame Presentation Mode` |
+| Break | Break Focus | Shortcut | Create `FireFrame Break Mode` |
+| Sleep Mode | Sleep Focus (not sleeping the Mac) | Shortcut | Create `FireFrame Sleep Mode` |
+| Quick Note | New quick note | Shortcut | Create `FireFrame Quick Note` |
+| Sleep Mac | Sleeps the Mac (asks to confirm) | `pmset sleepnow` | none |
+| Mute | Toggles system mute | `osascript` | none |
+| Display | Opens Display settings | `open` URL | none |
+| Spotify / GPT / Wallpapers | Open the app (GPT falls back to the website) | `open -a` | install the app |
+| Prepare | Opens your work apps and links | `open` | set `PREPARE_APPS` / `PREPARE_URLS` |
+| Restart | Shows restart instructions | info modal | none |
+
+The six Shortcuts to create in the Shortcuts app: `FireFrame DND`, `FireFrame Locked In`, `FireFrame Presentation Mode`, `FireFrame Break Mode`, `FireFrame Sleep Mode`, `FireFrame Quick Note`. Test any of them from a terminal with, for example, `shortcuts run "FireFrame DND"`.
+
+App names like Spotify, ChatGPT, and iWallpaper are generic placeholders. If yours differ, change the `app` value in `backend/config.py`; an app that is not installed produces a clean error. To remove a button entirely, delete its entry from `SHORTCUT_ACTIONS`. Sleep Mac is the only action that asks for confirmation, so a stray tap or background refresh cannot trigger it.
+
+The Home screen reuses this same registry for its Quick Actions and the app launcher (`launch_chrome`, `launch_vscode`, `launch_terminal`, `launch_notes`, `launch_finder`, `bluetooth_settings`, and the apps above).
+
+## Timers
+
+Timers run as FireFrame's own countdown rather than the Clock app, so presets and custom durations behave the same and never set off a loud alarm.
+
+- Presets: 5, 15, 25 (Focus), and 45 (Work) minutes.
+- Custom: an hours-and-minutes entry plus quick 10/20/30/60 chips, validated from 1 minute to 24 hours.
+- Controls: pause/resume, reset, and cancel. Only one timer runs at a time, and a small countdown chip stays visible above the bottom nav on every tab.
+
+When a timer finishes, the tablet shows a calm "Done" state and the Mac posts a passive notification with a soft sound (`TIMER_SOUND`, default `Glass`). The notification respects Do Not Disturb and Focus, so it will not interrupt focused work.
+
+macOS attributes `osascript` notifications to Script Editor. If you do not see banners, allow notifications for Script Editor under System Settings > Notifications. To verify:
+
+```bash
+osascript -e 'display notification "Timer finished" with title "FireFrame Timer" sound name "Glass"'
+```
 
 ## Photos
 
-Copy `.jpg`, `.jpeg`, `.png`, `.gif`, or `.webp` files into `photos/`, or set `PHOTOS_DIR` to a folder outside the repo. The Photos tab has shuffle, pause/resume, lock (stops on the current photo), and prev/next/random. Your shuffle/pause/locked choices persist in the browser via `localStorage`. Personal photos are gitignored and never committed.
+Drop images into `photos/`, or set `PHOTOS_DIR` to a folder outside the repo. The Photos tab has shuffle, pause/resume, lock-on-photo, and manual navigation; those choices persist in the browser via `localStorage`. Personal photos are gitignored and never committed.
 
-## Buttons tab (macOS control centre)
+## Weather (optional)
 
-The Buttons tab is grouped into **Focus & Modes**, **Mac Controls**, **Apps & Tools**, **Timers**, and **FireFrame**. Each button maps to an entry in the `SHORTCUT_ACTIONS` registry in `backend/config.py` (or the defaults in `backend/config_loader.py`). The browser only ever sends the registry **key** — never a command — and the backend runs the matching `shortcuts run`, `open`, or small fixed command (never `shell=True`). To customise, copy `backend/config.example.py` to `backend/config.py` (gitignored) and edit the Shortcut/app names.
+There is no API-key-free system weather command on macOS, so FireFrame reads weather from a Shortcut you own. No third-party API, and your location and units stay inside the Shortcut.
 
-Focus modes have no command-line equivalent on macOS, so they go through Shortcuts you create in the **Shortcuts app**. The others work out of the box.
+1. Create a Shortcut named `FireFrame Weather` that ends by outputting a short string (for example a Get Current Weather action feeding a Text action like `(Temperature) (Conditions)`, then Stop and output).
+2. Verify it: `shortcuts run "FireFrame Weather" --output-path -` should print the string.
+3. Set `WEATHER_ENABLED=1`.
 
-| Button | What it does | Type | Setup | Permissions | Test in Terminal |
-|---|---|---|---|---|---|
-| DND | Enables Do Not Disturb / Focus | macOS Shortcut | Create **FireFrame DND** | Shortcuts/Focus | `shortcuts run "FireFrame DND"` |
-| Locked In | Starts deep-work Focus | macOS Shortcut | Create **FireFrame Locked In** | Focus | `shortcuts run "FireFrame Locked In"` |
-| Presentation | Presentation Focus + muted notifications | macOS Shortcut | Create **FireFrame Presentation Mode** | Focus | `shortcuts run "FireFrame Presentation Mode"` |
-| Break | Switches to a break Focus | macOS Shortcut | Create **FireFrame Break Mode** | Optional | `shortcuts run "FireFrame Break Mode"` |
-| Sleep Mode | Enables **Sleep Focus** (not sleeping the Mac) | macOS Shortcut | Create **FireFrame Sleep Mode** | Focus | `shortcuts run "FireFrame Sleep Mode"` |
-| Sleep Mac | Sleeps this Mac (asks to confirm first) | Direct (`pmset sleepnow`) | None | May need Energy access | `pmset sleepnow` |
-| Mute | Toggles system mute | Direct (`osascript`) | None | Usually none | `osascript -e 'set volume output muted true'` |
-| Display | Opens Display settings | Direct (`open` URL) | None | None | `open "x-apple.systempreferences:com.apple.Displays-Settings.extension"` |
-| Spotify | Opens Spotify | Direct (`open -a`) | Install Spotify | None | `open -a Spotify` |
-| Quick Note | New quick note | macOS Shortcut | Create **FireFrame Quick Note** | Shortcuts | `shortcuts run "FireFrame Quick Note"` |
-| GPT | Opens the ChatGPT app, else the website | App or URL | Install ChatGPT (optional) | None | `open -a ChatGPT` |
-| Wallpapers | Opens the **iWallpaper** app | Direct (`open -a`) | Install/rename in config | macOS may prompt | `open -a iWallpaper` |
-| 5 / 15 / 25 / 45 min, Custom | FireFrame's own countdown + gentle Mac notification | In-app (no Shortcut) | None | Notifications (see below) | n/a |
-| Prepare | Opens your work apps + links | Direct (`open`) | Edit `PREPARE_APPS` / `PREPARE_URLS` | None | `open -a Spotify` |
-| Restart | Shows safe restart instructions | Info modal | None | None | n/a |
+The result is cached for about 30 minutes. When disabled the card is hidden.
 
-Notes:
-- **Shortcut names you must create:** `FireFrame DND`, `FireFrame Locked In`, `FireFrame Presentation Mode`, `FireFrame Break Mode`, `FireFrame Sleep Mode`, `FireFrame Quick Note`. (You can also point `prepare` at a Shortcut named `FireFrame Prepare` by editing the registry.)
-- **iWallpaper / Spotify / ChatGPT** are app names. If your app is named differently, change `app` in `SHORTCUT_ACTIONS`. If an app isn't installed, the button shows a clean "Is it installed?" error.
-- **Sleep Mac** is the only confirmed action and won't fire from a stray tap or background refresh.
-- **Restart** never restarts the server remotely; it shows manual steps (Ctrl-C in the terminal, re-run your launch command, then Reload App).
+## Running on the tablet
 
-To keep your setup out of Git, put your edited `SHORTCUT_ACTIONS`, `PREPARE_APPS`, and `PREPARE_URLS` in `backend/config.py`, which is gitignored. The committed `backend/config.example.py` carries only generic placeholders.
-
-### Timers
-
-Timers use **FireFrame's own countdown** (not macOS Shortcuts), so presets and custom durations work the same way and never trigger the loud Clock-app alarm.
-
-- **Presets:** 5 / 15 / 25 (Focus) / 45 (Work) minutes. Tapping one starts the countdown and opens the timer panel.
-- **Custom:** the **Custom** button opens an entry with hours + minutes fields and quick chips (10 / 20 / 30 / 60 min). Input is validated (1 minute to 24 hours) with a clean inline error.
-- **Controls:** Pause/Resume, Reset (back to full duration), Cancel. Only one timer runs at a time. A small countdown chip stays visible above the bottom nav across all tabs; tap it to reopen the panel.
-- **On completion:** FireFrame shows a calm "Done" state and posts a **passive macOS notification** with a soft sound (default `Glass`). The notification respects Do Not Disturb / Focus, so it won't interrupt focused or full-screen work — during a Focus it's silently held by macOS, and the on-screen "Done" state still shows on the tablet.
-
-**Enabling the Mac notification:** the banner is posted via `osascript display notification`, which macOS attributes to **Script Editor**. If you don't see banners, open **System Settings → Notifications → Script Editor** and allow notifications. Test it from Terminal:
-
-```bash
-osascript -e 'display notification "25-minute timer finished" with title "FireFrame Timer" sound name "Glass"'
-```
-
-Change or silence the sound with `TIMER_SOUND` in `backend/config.py` (any name from `/System/Library/Sounds`, e.g. `Tink`, `Pop`, `Ping`; set `""` for a silent banner). To prefer Shortcut-based presets instead, you can still add `data-action` buttons that map to `{"type": "shortcut", ...}` entries — but the built-in timer is recommended because it handles custom durations and stays gentle.
-
-## Home screen
-
-Home is the at-a-glance dashboard. Each widget reuses an existing route, so it adds no new polling beyond what the app already does:
-
-- **Clock / date**, **Up Next** (next 3 events from `/api/calendar/upcoming`), **Mac** (CPU / memory / storage / battery meters + uptime from `/api/stats`), and **Bluetooth** (status + connected device names from `/api/bluetooth/devices`).
-- **Timer** card: quick presets (5/15/25/45) and Custom; shows the running timer with pause/cancel inline. Same single timer as the Buttons page.
-- **Quick Actions** and **Open App**: compact tiles that call the `/api/action` registry. The launcher apps live in `SHORTCUT_ACTIONS` (`launch_chrome`, `launch_vscode`, `launch_terminal`, `launch_notes`, `launch_finder`, `bluetooth_settings`, plus Spotify/ChatGPT/Display/iWallpaper). Rename the `app` values in `backend/config.py` to match your machine; an app that isn't installed shows a clean error.
-- **Status footer**: server state, tablet URL (with Copy), version, and last refresh.
-
-Refresh cadence is unchanged: stats every 15s, Bluetooth every 30s, and all polling pauses when the tablet screen is hidden.
-
-### Weather (optional, off by default)
-
-There's no API-key-free system weather CLI on macOS, so FireFrame reads weather from a **Shortcut you own** — no third-party API, and your location/units stay inside the Shortcut, not the repo.
-
-1. In the Shortcuts app, create a shortcut named **FireFrame Weather** that ends by outputting a short string, e.g. *Get Current Weather → Text "(Temperature) (Conditions)" → Stop and output*.
-2. Test it: `shortcuts run "FireFrame Weather" --output-path -` should print the string.
-3. Enable it: set `WEATHER_ENABLED=1` (env or `backend/config.py`). Optionally change the name with `WEATHER_SHORTCUT`.
-
-The result is cached for ~30 minutes, so the Shortcut runs at most a couple of times an hour. When disabled the card is hidden entirely.
-
-## Fire tablet (Fully Kiosk Browser)
-
-Use [Fully Kiosk Browser](https://www.fully-kiosk.com/) from the Amazon Appstore or an APK. Silk and Chrome cannot reliably stay fullscreen.
+Use Fully Kiosk Browser on the Fire tablet with these settings:
 
 | Setting | Value |
 |---|---|
@@ -184,18 +177,46 @@ Use [Fully Kiosk Browser](https://www.fully-kiosk.com/) from the Amazon Appstore
 | Fullscreen | on |
 | Hide address bar | on |
 | Keep screen on | on |
-| Orientation | Landscape |
+| Orientation | landscape |
 | Reload on network reconnect | on |
 
-- **Stable IP:** set a DHCP reservation on your router so the Mac's IP (and the Start URL) stay put after a reboot.
-- **Login:** tap-based PIN pad, no soft keyboard needed; keyboard fallback for longer passwords.
-- **Rate limit:** 5 failed attempts locks that device out for 30 seconds.
-- **Caching:** the page is served with no-cache headers and the CSS/JS are versioned, so a reload always picks up new code. The Settings tab has a "Force Reload" button.
-- **Exit kiosk:** use the Fully Kiosk admin overlay, swipe up for recent apps, or force-stop from Fire OS settings.
+Give the Mac a static IP with a DHCP reservation on your router so the Start URL keeps working after a reboot. Login is a tap-based PIN pad with a keyboard fallback, rate-limited to 5 attempts before a 30-second lockout. The page is served with no-cache headers and versioned assets, so a reload always picks up new code.
+
+## Project structure
+
+```
+backend/
+  main.py             FastAPI app, routes, login, rate limiting
+  auth.py             session cookies and the auth dependency
+  config_loader.py    env + optional config.py, default action registry
+  config.example.py   template for a local backend/config.py
+  actions.py          button actions, timer notification, weather
+  bluetooth.py        system_profiler scan, blueutil connect/disconnect
+  calendar_service.py Apple Calendar / ICS / demo sources
+  calendar_stub.py    demo events
+  mac_stats.py        full stats for the Stats tab
+  stats.py            lightweight stats for the Home summary
+  health.py           config/feature status for Settings
+  photos.py           photo listing and folder open
+frontend/
+  index.html          single-page UI
+  app.js              all client logic
+  style.css           dark theme
+  manifest.json       PWA manifest
+scripts/
+  start.sh / stop.sh  launch and stop helpers
+  launchd/            optional login-agent example
+fireframe.command     double-click launcher for macOS
+```
+
+## Running without a terminal (macOS)
+
+- `fireframe.command`: double-click in Finder to start the server (first run: right-click then Open). It prints the tablet URL and can be dragged to the Dock.
+- Login agent: `scripts/launchd/` has an example `launchd` plist to start the server at login. Copy it to `~/Library/LaunchAgents/`, set the absolute path to `scripts/start.sh`, and load it with `launchctl`.
 
 ## Developing on another machine
 
-You can edit and run on any machine (for example a Linux box):
+The server runs anywhere; only the macOS-specific features are inert off macOS.
 
 ```bash
 python3 -m venv .venv
@@ -203,38 +224,24 @@ python3 -m venv .venv
 ./.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8765 --reload
 ```
 
-Reach it without exposing a port: `ssh -L 8765:127.0.0.1:8765 <dev-box>`. Off macOS the UI, stats, and photos work; Bluetooth, Calendar, and Shortcuts show their unsupported states.
-
-If `python3 -m venv` reports that `ensurepip` is missing (minimal Debian/Ubuntu):
-
-```bash
-python3 -m venv .venv --without-pip
-curl -sSL https://bootstrap.pypa.io/get-pip.py | ./.venv/bin/python -
-./.venv/bin/python -m pip install -r requirements.txt
-```
-
-## Launching without a terminal (macOS)
-
-- **`launch-mac.command`:** double-click it in Finder to start the server (first run: right-click > Open). Drag it to the Dock for one tap.
-- **Automator app:** New > Application > Run Shell Script, paste `cd "$HOME/path/to/FireFrame" && ./scripts/start.sh`, and save as `FireFrame.app`.
-- **At login:** an example launchd agent is in `scripts/launchd/`. Copy it to `~/Library/LaunchAgents/`, fix the paths, and load it.
+To reach a remote dev box without exposing a port: `ssh -L 8765:127.0.0.1:8765 <dev-box>`.
 
 ## Troubleshooting
 
-- **New PIN does not work:** restart the server; `.env` is read only at startup.
-- **Buttons fail:** check the Shortcut names match exactly, and that the terminal running the server has Automation/Accessibility permission.
-- **Calendar error:** for `apple`, grant Automation permission; otherwise use an `.ics` file or URL.
-- **Bluetooth connect greyed out:** install `blueutil` (or drop the binary in `./bin/`) and restart. Listing and status work without it.
-- **Disable an action:** set `"enabled": False` for it in `backend/config.py`.
+- New PIN does not work: restart the server, since `.env` is read only at startup.
+- Shortcut buttons fail: check the Shortcut names match exactly and that the process running the server has Automation permission.
+- Calendar error: for `apple`, grant Calendar/Automation permission; otherwise use an `.ics` source.
+- Bluetooth connect greyed out: install `blueutil` (or drop the binary in `./bin/`) and restart. Listing and status work without it.
+- Remove a button: delete its entry from `SHORTCUT_ACTIONS` in `backend/config.py`.
 
 ## Before publishing
 
-- [ ] `.env` and `backend/config.py` are gitignored and not committed.
-- [ ] No personal photos in `photos/` (only `README.md`).
+- [ ] `.env` and `backend/config.py` are not committed.
+- [ ] No personal photos in `photos/` (only its `README.md`).
 - [ ] No personal URLs, IPs, or Bluetooth identifiers in committed files.
 - [ ] No `*.ics`, logs, or `__pycache__` committed.
-- [ ] Choose a license (below).
+- [ ] Add a license (see below).
 
 ## License
 
-_TODO: choose a license before publishing (MIT, Apache-2.0, GPL, etc.)._
+This repository does not include a license yet. Add one before publishing; MIT is a reasonable default for a project like this.

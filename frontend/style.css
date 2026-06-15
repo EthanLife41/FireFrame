@@ -385,11 +385,13 @@ html, body {
 /* ===================================================
    HOME TAB: at-a-glance card grid
    =================================================== */
+/* minmax(180px) packs 4 columns across the Fire HD 8's ~800-960 CSS px width,
+   which keeps the page short enough to need little scrolling. */
 .home-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     grid-auto-flow: row dense;
-    gap: 0.8rem;
+    gap: 0.7rem;
     align-content: start;
     padding-bottom: 0.5rem;
 }
@@ -398,6 +400,8 @@ html, body {
 .home-actions  { grid-column: span 2; }
 .home-launcher { grid-column: span 2; }
 .home-ff       { grid-column: 1 / -1; }
+/* Denser padding than a normal card so more fits on the short landscape screen */
+.home-card { padding: 0.85rem 0.95rem; }
 
 .clock-card {
     text-align: center;
@@ -409,7 +413,7 @@ html, body {
         var(--surface);
 }
 .clock {
-    font-size: clamp(2.6rem, 6vw, 3.8rem);
+    font-size: clamp(2.3rem, 5.5vw, 3.4rem);
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1;
@@ -437,15 +441,15 @@ html, body {
 .home-setup-link { color: var(--primary); cursor: pointer; }
 
 /* Mac meters */
-.meter { margin-bottom: 0.5rem; }
-.meter-top { display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem; }
+.meter { margin-bottom: 0.38rem; }
+.meter-top { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 0.18rem; }
 .meter-top span:first-child { color: var(--muted); }
 .meter-top span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
 .bar { height: 6px; background: var(--surface2); border-radius: var(--pill); overflow: hidden; }
 .bar-fill { height: 100%; width: 0; background: var(--primary); border-radius: var(--pill); transition: width 0.4s ease, background 0.3s ease; }
 .bar-fill.warn { background: #ff9f0a; }
 .bar-fill.crit { background: var(--danger); }
-.home-mac-foot { display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 0.55rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.home-mac-foot { display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 0.45rem; padding-top: 0.45rem; border-top: 1px solid var(--border); }
 .home-mac-foot span:first-child { color: var(--muted); }
 .home-mac-foot span:last-child { font-weight: 600; }
 
@@ -458,30 +462,31 @@ html, body {
 /* Timer card */
 .home-timer-active { text-align: center; }
 .home-timer-name { font-size: 0.8rem; color: var(--muted); }
-.home-timer-time { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.15; }
+.home-timer-time { font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.15; }
 .home-timer-active.timer-done .home-timer-time { color: var(--green); }
 .home-timer-controls { display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; }
-.home-timer-quick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; }
-.home-timer-quick .btn { padding: 0.5rem 0; min-height: 44px; }
+/* Wrap rather than 5 fixed columns so "Custom" never clips in a narrow card. */
+.home-timer-quick { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.home-timer-quick .btn { flex: 1 1 40px; padding: 0.5rem 0.3rem; min-height: 44px; }
 
 /* Weather */
 .home-weather-text { font-size: 1.05rem; font-weight: 600; }
 
 /* Quick actions + launcher: compact tiles */
-.home-mini-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 0.5rem; }
+.home-mini-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0.45rem; }
 .mini-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.25rem;
-    padding: 0.6rem 0.3rem;
-    min-height: 64px;
+    gap: 0.22rem;
+    padding: 0.5rem 0.3rem;
+    min-height: 58px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--surface2);
     color: var(--text);
-    font-size: 1.3rem;          /* emoji glyph */
+    font-size: 1.25rem;          /* emoji glyph */
     cursor: pointer;
     box-shadow: var(--glass-edge);
     transition: transform 0.12s ease, background 0.16s ease, border-color 0.16s ease;

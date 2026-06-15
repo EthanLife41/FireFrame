@@ -1,11 +1,20 @@
 .env
 backend/config.py
 
+# Python
 .venv/
 venv/
 __pycache__/
 *.pyc
+*.egg-info/
+.pytest_cache/
+
+# Editors / OS
 .DS_Store
+.vscode/
+.idea/
+
+# Runtime
 logs/
 *.log
 .server.pid

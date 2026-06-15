@@ -98,29 +98,3 @@ SHORTCUT_ACTIONS = {
                            "label": "Bluetooth Settings"},
     "prepare":          {"type": "prepare"},
 }
-
-# Optional legacy Bluetooth shortcut actions (the Bluetooth tab handles
-# connect/disconnect directly; these only matter if you add custom buttons).
-ACTION_CONFIG = {
-    "bluetooth_toggle": {"enabled": True},
-    "bluetooth_connect_headphones": {"enabled": True},
-    "bluetooth_disconnect_headphones": {"enabled": True},
-    "bluetooth_connect_speaker": {"enabled": True},
-    "bluetooth_disconnect_speaker": {"enabled": True},
-    "open_bluetooth_settings": {"enabled": True},
-}
-
-# Bluetooth Devices
-# Friendly identifiers used to prevent exposing real Bluetooth MAC addresses to the frontend
-BLUETOOTH_DEVICES = {
-    "headphones": {
-        "label": "Headphones",
-        "enabled": True,
-        "identifier": "PLACEHOLDER_HEADPHONES_ID" # e.g. a MAC address if direct tools used later
-    },
-    "speaker": {
-        "label": "Speaker",
-        "enabled": True,
-        "identifier": "PLACEHOLDER_SPEAKER_ID"
-    }
-}

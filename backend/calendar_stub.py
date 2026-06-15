@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 def get_placeholder_events() -> list:
     # Sample events for the "demo" calendar source.
     now = datetime.now()
-    
+
     events = [
         {
             "id": "1",

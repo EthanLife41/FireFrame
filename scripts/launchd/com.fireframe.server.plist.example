@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.example.deskcompanion</string>
+    <string>com.fireframe.server</string>
 
     <key>ProgramArguments</key>
     <array>
-        <!-- REPLACE THIS WITH YOUR ACTUAL ABSOLUTE PATH TO start.sh -->
+        <!-- Replace with the absolute path to scripts/start.sh on your Mac -->
         <string>/Users/YOUR_USERNAME/path/to/FireFrame/scripts/start.sh</string>
     </array>
 
@@ -18,11 +18,9 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <!-- REPLACE WITH YOUR DESIRED LOG PATH -->
-    <string>/tmp/deskcompanion.out</string>
+    <string>/tmp/fireframe.out</string>
 
     <key>StandardErrorPath</key>
-    <!-- REPLACE WITH YOUR DESIRED LOG PATH -->
-    <string>/tmp/deskcompanion.err</string>
+    <string>/tmp/fireframe.err</string>
 </dict>
 </plist>

@@ -344,7 +344,7 @@ function setupReloadButtons() {
     };
     const loginReloadBtn = document.getElementById('login-reload-btn');
     if (loginReloadBtn) loginReloadBtn.addEventListener('click', reload);
-    
+
     const settingsReloadBtn = document.getElementById('settings-reload-btn');
     if (settingsReloadBtn) settingsReloadBtn.addEventListener('click', reload);
 }

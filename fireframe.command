@@ -5,7 +5,8 @@
 # (or Ctrl+C) to stop the server.
 cd "$(dirname "$0")"
 
-IP=$(ipconfig getifaddr en0)
+# en0 is Wi-Fi on most Macs; fall back to en1 if it has no address.
+IP=$(ipconfig getifaddr en0 || ipconfig getifaddr en1)
 
 echo "======================================"
 echo "FireFrame starting..."

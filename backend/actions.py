@@ -182,8 +182,7 @@ def get_weather() -> dict:
 def handle_action(action_id: str, params: dict) -> dict:
     spec = SHORTCUT_ACTIONS.get(action_id)
     if not spec:
-        # Unknown here; main.py falls back to the Bluetooth handler for its keys.
-        return {"success": False, "message": f"Handler for '{action_id}' not found."}
+        return {"success": False, "message": f"Unknown action '{action_id}'."}
 
     t = spec.get("type")
     if t == "shortcut":

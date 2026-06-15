@@ -96,9 +96,6 @@ _DEFAULTS = {
     # "Prepare" opens these apps and links. Keep them generic in a public repo.
     "PREPARE_APPS": ["Spotify", "Discord"],
     "PREPARE_URLS": ["https://www.google.com"],
-    # Feature config (safe empties; a config file normally supplies these)
-    "ACTION_CONFIG": {},
-    "BLUETOOTH_DEVICES": {},
 }
 
 for _key, _val in _DEFAULTS.items():

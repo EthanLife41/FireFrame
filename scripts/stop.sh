@@ -11,7 +11,7 @@ if [ -f .server.pid ]; then
     echo "Stopped."
 else
     echo "Server does not appear to be running (no .server.pid found)."
-    
+
     # Fallback to finding and killing uvicorn for this app
     PIDS=$(ps aux | grep "python3 -m uvicorn backend.main:app" | grep -v grep | awk '{print $2}')
     if [ ! -z "$PIDS" ]; then

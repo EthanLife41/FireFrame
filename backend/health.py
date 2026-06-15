@@ -6,12 +6,13 @@ basename, and secrets are reported only as "is this still the default", never as
 their actual values.
 """
 
+import os
 import shutil
 
 from backend.config_loader import (
     HOST,
     PORT,
-    ACTION_CONFIG,
+    SHORTCUT_ACTIONS,
     DASHBOARD_PASSWORD,
     SESSION_SECRET,
     CONFIG_IS_LOCAL,
@@ -19,7 +20,6 @@ from backend.config_loader import (
 from backend.photos import PHOTOS_DIR, get_photos_payload
 from backend.bluetooth import get_bluetooth_support
 from backend.calendar_service import get_calendar_status, get_today
-import os
 
 # The shipped defaults; matching them means the user hasn't set their own yet.
 _DEFAULT_PASSWORD = "change-me"
@@ -55,11 +55,12 @@ def _photos() -> dict:
 
 
 def _shortcuts() -> dict:
-    enabled = [a for a, c in (ACTION_CONFIG or {}).items()
-               if isinstance(c, dict) and c.get("enabled")]
+    # Count the actions that need a macOS Shortcut created (type "shortcut").
+    count = sum(1 for spec in (SHORTCUT_ACTIONS or {}).values()
+                if isinstance(spec, dict) and spec.get("type") == "shortcut")
     return {
-        "configured": len(enabled) > 0,
-        "count": len(enabled),
+        "configured": count > 0,
+        "count": count,
         "cli_available": shutil.which("shortcuts") is not None,
     }
 

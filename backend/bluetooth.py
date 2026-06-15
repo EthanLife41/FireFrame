@@ -16,13 +16,7 @@ import subprocess
 import threading
 import time
 
-from backend.actions import run_shortcut
-from backend.config_loader import (
-    ACTION_CONFIG,
-    BLUETOOTH_DEVICES,
-    BLUETOOTH_ALLOW_CONNECT,
-    BLUEUTIL_PATH,
-)
+from backend.config_loader import BLUETOOTH_ALLOW_CONNECT, BLUEUTIL_PATH
 
 # colon- or hyphen-separated MAC
 _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}([:-][0-9A-Fa-f]{2}){5}$")
@@ -278,56 +272,3 @@ def connect_device(token: str) -> dict:
 
 def disconnect_device(token: str) -> dict:
     return _set_connection(token, False)
-
-
-# Shortcuts-based actions used by the fixed Buttons tab.
-def handle_bluetooth_action(action_id: str, params: dict) -> dict:
-    config = ACTION_CONFIG.get(action_id, {})
-    if not config.get("enabled", False):
-        return {"success": False, "message": f"Action '{action_id}' is disabled or unknown."}
-
-    if action_id == "bluetooth_toggle":
-        return run_shortcut("Desk Bluetooth Toggle")
-
-    elif action_id == "bluetooth_connect_headphones":
-        if not BLUETOOTH_DEVICES.get("headphones", {}).get("enabled", False):
-            return {"success": False, "message": "Headphones are not enabled in config."}
-        return run_shortcut("Desk Connect Headphones")
-
-    elif action_id == "bluetooth_disconnect_headphones":
-        if not BLUETOOTH_DEVICES.get("headphones", {}).get("enabled", False):
-            return {"success": False, "message": "Headphones are not enabled in config."}
-        return run_shortcut("Desk Disconnect Headphones")
-
-    elif action_id == "bluetooth_connect_speaker":
-        if not BLUETOOTH_DEVICES.get("speaker", {}).get("enabled", False):
-            return {"success": False, "message": "Speaker is not enabled in config."}
-        return run_shortcut("Desk Connect Speaker")
-
-    elif action_id == "bluetooth_disconnect_speaker":
-        if not BLUETOOTH_DEVICES.get("speaker", {}).get("enabled", False):
-            return {"success": False, "message": "Speaker is not enabled in config."}
-        return run_shortcut("Desk Disconnect Speaker")
-
-    elif action_id == "open_bluetooth_settings":
-        try:
-            subprocess.run(
-                ["open", "x-apple.systempreferences:com.apple.BluetoothSettings"],
-                check=True,
-                capture_output=True,
-                timeout=5,
-            )
-            return {"success": True, "message": "Opened Bluetooth Settings."}
-        except Exception:
-            try:
-                subprocess.run(
-                    ["open", "-b", "com.apple.systempreferences"],
-                    check=True,
-                    capture_output=True,
-                    timeout=5,
-                )
-                return {"success": True, "message": "Opened System Settings."}
-            except Exception:
-                return {"success": False, "message": "Could not open Settings."}
-
-    return {"success": False, "message": f"Handler for '{action_id}' not found."}

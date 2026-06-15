@@ -11,7 +11,6 @@ from backend.auth import create_session_token, get_current_user, SESSION_MAX_AGE
 from backend.config_loader import DASHBOARD_PASSWORD
 from backend.actions import handle_action, notify_timer_done, get_weather
 from backend.bluetooth import (
-    handle_bluetooth_action,
     get_bluetooth_status,
     get_bluetooth_devices,
     connect_device,
@@ -95,22 +94,22 @@ class TimerNotifyRequest(BaseModel):
 async def serve_dashboard():
     css_path = os.path.join(frontend_dir, "style.css")
     js_path = os.path.join(frontend_dir, "app.js")
-    
+
     css_mtime = int(os.path.getmtime(css_path)) if os.path.exists(css_path) else int(time.time())
     js_mtime = int(os.path.getmtime(js_path)) if os.path.exists(js_path) else int(time.time())
-    
+
     html_path = os.path.join(frontend_dir, "index.html")
     if not os.path.exists(html_path):
         raise HTTPException(status_code=404, detail="index.html not found")
-        
+
     with open(html_path, "r", encoding="utf-8") as f:
         html_content = f.read()
-        
+
     # Replace template version placeholders
     html_content = html_content.replace("{{CSS_VERSION}}", str(css_mtime))
     html_content = html_content.replace("{{JS_VERSION}}", str(js_mtime))
     html_content = html_content.replace("{{VERSION}}", f"v{css_mtime}_{js_mtime}")
-    
+
     response = HTMLResponse(content=html_content)
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
@@ -164,12 +163,7 @@ async def get_status(user: bool = Depends(get_current_user)):
 
 @app.post("/api/action")
 async def perform_action(req: ActionRequest, user: bool = Depends(get_current_user)):
-    # Try general actions first
-    result = handle_action(req.action, req.params)
-    if not result.get("success") and "Handler for" in result.get("message", ""):
-        # Try bluetooth actions
-        result = handle_bluetooth_action(req.action, req.params)
-    return result
+    return handle_action(req.action, req.params)
 
 @app.get("/api/bluetooth/status")
 async def bluetooth_status(user: bool = Depends(get_current_user)):
