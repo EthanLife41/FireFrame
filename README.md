@@ -226,7 +226,7 @@ You can wrap the launcher in a real `.app` so FireFrame lives in `/Applications`
 
 In order to **give it the FireFrame icon**:
 
-1. Open FireFrame_Logo.png in Preview and copy it (Cmd-C).
+1. Open [FireFrame_Logo.png](FireFrame_Logo.png) in Preview and copy it (Cmd-C).
 2. Select FireFrame.app in Finder and open Get Info.
 3. Click the small icon in the top-left of the Info window and paste (Cmd-V)
 
