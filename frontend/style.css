@@ -637,27 +637,6 @@ html, body {
 }
 
 /* ===================================================
-   CALENDAR TAB
-   =================================================== */
-.cal-header {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 0.7rem;
-}
-.agenda-list { display: flex; flex-direction: column; gap: 0.55rem; }
-.agenda-item {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 0.8rem 0.95rem;
-    box-shadow: var(--glass-edge);
-}
-.agenda-item .ev-title { font-weight: 600; font-size: 0.95rem; }
-.agenda-item .ev-time  { font-size: 0.8rem; font-weight: 600; color: var(--primary); margin-top: 0.2rem; }
-.agenda-item .ev-loc   { font-size: 0.78rem; color: var(--muted); margin-top: 0.12rem; }
-
-/* ===================================================
    PHOTOS TAB
    =================================================== */
 .photo-tab {
@@ -697,14 +676,6 @@ html, body {
 }
 .no-photos span { font-size: 2.6rem; }
 
-.photo-hud {
-    position: absolute;
-    bottom: 0.9rem;
-    right: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
 .photo-clock {
     font-size: clamp(1.2rem, 4vw, 1.8rem);
     font-weight: 700;
@@ -827,22 +798,6 @@ html, body {
     gap: 0.7rem;
 }
 .modal-row .btn { flex: 1; }
-.time-input {
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text);
-    font-size: 1.5rem;
-    font-weight: 600;
-    padding: 0.7rem;
-    width: 100%;
-    text-align: center;
-}
-.time-input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.30);
-}
 .timer-box { max-width: 340px; gap: 0.7rem; }
 .timer-name { font-size: 0.95rem; font-weight: 700; color: var(--text); }
 .timer-display {
@@ -957,18 +912,16 @@ html, body {
     to   { transform: translate(-50%, 0); }
 }
 
-/* ===================================================
-   VERSION / DEBUG LABEL
-   =================================================== */
-.version-indicator {
+/* Small build tag in the corner (commit count + hash). Non-interactive. */
+.app-version {
     position: fixed;
-    bottom: 5px;
+    bottom: 4px;
     right: 8px;
-    z-index: 9999;
+    z-index: 50;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     color: var(--muted);
-    opacity: 0.4;
+    opacity: 0.45;
     pointer-events: none;
 }
 
@@ -1007,7 +960,7 @@ html, body {
     color: var(--green);
 }
 
-.bt-card-head, .cal-card-head {
+.bt-card-head {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;

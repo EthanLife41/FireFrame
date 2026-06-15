@@ -10,7 +10,7 @@ It is macOS-first. On other systems the UI still runs, but the macOS-specific fe
 
 ## Why I built this
 
-I got a Fire HD 8 for free. Fire OS is too locked down and the hardware too slow to make it a good tablet, but it has a fine screen and Wi-Fi, which is all you need for a screen that sits on a stand and does one job. I wanted something like a streamdeck without buying one, so I built a small web app the tablet could display full-screen and used it to drive Focus modes, app launches, and a calendar glance on my Mac. FireFrame is that project, cleaned up.
+I got a Fire HD 8 for free. Fire OS is too locked down and the hardware too slow to make it a good tablet, but it has a fine screen and Wi-Fi, which is all you need for a screen that sits on a stand and does one job. I wanted a touchscreen control panel for my Mac without buying dedicated hardware, so I built a small web app the tablet could display full-screen and used it to drive Focus modes, app launches, and a calendar glance. FireFrame is that project, cleaned up.
 
 ## Features
 
@@ -48,6 +48,7 @@ cp .env.example .env      # then set DASHBOARD_PASSWORD and SESSION_SECRET
 
 Find your Mac's LAN IP (System Settings > Wi-Fi > Details, something like `x.x.x.x`) and open `http://<MAC_IP>:8765` on the tablet.
 
+- Set a real `SESSION_SECRET` (for example `python3 -c "import secrets; print(secrets.token_hex(32))"`). The server refuses to start while it is left at the default, since that value is public and would let anyone forge a session.
 - The login PIN is your `DASHBOARD_PASSWORD`. A 4-digit value works with the on-screen keypad; longer passwords use the keyboard fallback.
 - `.env` is read once at startup, so restart the server after editing it.
 - To customize buttons, the app launcher, or the Prepare apps and links, copy `backend/config.example.py` to `backend/config.py` (gitignored) and edit it there.

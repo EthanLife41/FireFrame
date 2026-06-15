@@ -1,9 +1,5 @@
-fastapi==0.109.2
-uvicorn==0.27.1
+fastapi==0.115.6
+uvicorn==0.34.0
 python-dotenv==1.0.1
-itsdangerous==2.1.2
-psutil==5.9.8
-
-# Optional (macOS only): faster Apple Calendar reads via EventKit. Install separately so a resolution issue here never blocks the core install:
-#   pip install pyobjc-framework-EventKit
-# Without it, the calendar falls back to a slower AppleScript path.
+itsdangerous==2.2.0
+psutil==6.1.1

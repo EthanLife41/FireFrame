@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import os
 import time
 import secrets
+import subprocess
 from collections import defaultdict
 
 from backend.auth import create_session_token, get_current_user, SESSION_MAX_AGE_SECONDS
@@ -16,7 +17,7 @@ from backend.bluetooth import (
     connect_device,
     disconnect_device,
 )
-from backend.stats import get_mac_stats
+from backend.stats import get_home_stats
 from backend.mac_stats import get_mac_stats as get_dashboard_stats
 from backend.health import get_settings_status
 from backend.photos import get_photos_payload, get_random_photo, open_photos_dir, PHOTOS_DIR
@@ -28,6 +29,27 @@ from backend.calendar_service import (
     get_sources,
     refresh_calendar,
 )
+
+def _app_version() -> str:
+    """Build label shown in the corner: commit count + short hash (e.g. v26 ·
+    3d80e9b). Computed once at startup; falls back to "dev" without a git repo
+    (e.g. a zip download)."""
+    repo = os.path.join(os.path.dirname(__file__), "..")
+    try:
+        count = subprocess.run(["git", "-C", repo, "rev-list", "--count", "HEAD"],
+                               capture_output=True, text=True, timeout=3)
+        sha = subprocess.run(["git", "-C", repo, "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=3)
+        if count.returncode == 0 and sha.returncode == 0:
+            c, s = count.stdout.strip(), sha.stdout.strip()
+            if c and s:
+                return f"v{c} · {s}"
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        pass
+    return "dev"
+
+
+APP_VERSION = _app_version()
 
 app = FastAPI(title="FireFrame API")
 
@@ -108,7 +130,7 @@ async def serve_dashboard():
     # Replace template version placeholders
     html_content = html_content.replace("{{CSS_VERSION}}", str(css_mtime))
     html_content = html_content.replace("{{JS_VERSION}}", str(js_mtime))
-    html_content = html_content.replace("{{VERSION}}", f"v{css_mtime}_{js_mtime}")
+    html_content = html_content.replace("{{VERSION}}", APP_VERSION)
 
     response = HTMLResponse(content=html_content)
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -187,7 +209,7 @@ async def bluetooth_disconnect(req: DeviceRequest, user: bool = Depends(get_curr
 
 @app.get("/api/stats")
 async def mac_stats(user: bool = Depends(get_current_user)):
-    return get_mac_stats()
+    return get_home_stats()
 
 @app.get("/api/mac-stats")
 async def mac_stats_dashboard(user: bool = Depends(get_current_user)):

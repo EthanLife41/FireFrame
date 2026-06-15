@@ -117,3 +117,16 @@ for key in dir(dynamic_config):
 
 # True when a local backend/config.py is in use (vs the bundled example).
 CONFIG_IS_LOCAL = os.path.exists(LOCAL_CONFIG_PATH)
+
+# The default secret is public, so cookies signed with it can be forged.
+if SESSION_SECRET == "change-this-random-string":
+    sys.stderr.write(
+        "FATAL: SESSION_SECRET is still the default value.\n"
+        "       Set a long random value in .env before starting FireFrame:\n"
+        "         python3 -c \"import secrets; print(secrets.token_hex(32))\"\n")
+    raise SystemExit(1)
+
+if DASHBOARD_PASSWORD == "change-me":
+    sys.stderr.write(
+        "WARNING: DASHBOARD_PASSWORD is still the default 'change-me'. "
+        "Set your own PIN/password in .env.\n")

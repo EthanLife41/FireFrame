@@ -9,9 +9,11 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
-# Load environment variables
+# Export .env so HOST/PORT are visible below. Sourcing handles inline comments.
 if [ -f .env ]; then
-    export $(cat .env | grep -v '#' | awk '/=/ {print $1}')
+    set -a
+    . ./.env
+    set +a
 fi
 
 HOST=${HOST:-0.0.0.0}

@@ -453,7 +453,6 @@
                     <div class="card-label">Config Health</div>
                     <div class="setting-row"><span>Config file</span><span id="set-cfg" class="st-val">—</span></div>
                     <div class="setting-row"><span>Dashboard password</span><span id="set-pw" class="st-val">—</span></div>
-                    <div class="setting-row"><span>Session secret</span><span id="set-secret" class="st-val">—</span></div>
                     <p id="set-cfg-hint" class="muted-text setting-hint hidden"></p>
                 </div>
 
@@ -585,8 +584,9 @@
 <!-- Toast -->
 <div id="toast" class="toast hidden"></div>
 
-<div class="version-indicator" id="version-indicator">FireFrame {{VERSION}}</div>
+<div class="app-version">{{VERSION}}</div>
 
+<script>window.FF_VERSION = "{{VERSION}}";</script>
 <script src="/static/app.js?v={{JS_VERSION}}"></script>
 </body>
 </html>

@@ -1,15 +1,8 @@
 // FireFrame frontend. Built for the Fire HD 8 in landscape (Fully Kiosk Browser).
 
-// Global error logger for easier troubleshooting on tablets
+// Log uncaught errors to the console for troubleshooting on the tablet.
 window.addEventListener('error', (event) => {
-    const msg = `JS Error: ${event.message} at ${event.filename || 'app.js'}:${event.lineno}`;
-    console.error(msg);
-    const toastEl = document.getElementById('toast');
-    if (toastEl) {
-        showToast(msg, true);
-    } else {
-        alert(msg);
-    }
+    console.error(`JS error: ${event.message} at ${event.filename || 'app.js'}:${event.lineno}`);
 });
 
 // --- State ---
@@ -404,11 +397,15 @@ function onActionButton(btn) {
 async function triggerAction(action, params = {}, btn = null) {
     if (btn) { btn.classList.add('btn-busy'); btn.disabled = true; }
     try {
-        const res  = await fetch('/api/action', {
+        const res = await fetch('/api/action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, params })
         });
+        if (!res.ok) {
+            showToast(`Server error (${res.status}).`, true);
+            return;
+        }
         const data = await res.json();
         showToast(data.success ? (data.message || 'Done.') : `Error: ${data.message}`, !data.success);
     } catch {
@@ -591,8 +588,7 @@ function setHint(id, text) {
 
 async function loadSettings() {
     setText('set-url', window.location.origin);
-    const vi = document.getElementById('version-indicator');
-    if (vi) setText('set-version', vi.textContent.replace('FireFrame', '').trim() || '—');
+    setText('set-version', window.FF_VERSION || '—');
 
     try {
         const s = await (await fetch('/api/status')).json();
@@ -649,10 +645,8 @@ function renderSettings(h) {
     const cfg = h.config || {};
     setStatus('set-cfg', cfg.local_config ? 'Local config in use' : 'Using example config', cfg.local_config ? 'ok' : 'warn');
     setStatus('set-pw', cfg.password_is_default ? 'Default — change it' : 'Set', cfg.password_is_default ? 'warn' : 'ok');
-    setStatus('set-secret', cfg.secret_is_default ? 'Default — change it' : 'Set', cfg.secret_is_default ? 'warn' : 'ok');
     const todo = [];
     if (cfg.password_is_default) todo.push('DASHBOARD_PASSWORD');
-    if (cfg.secret_is_default) todo.push('SESSION_SECRET');
     setHint('set-cfg-hint', todo.length ? `Set in .env: ${todo.join(', ')}.` : '');
 }
 
@@ -1095,8 +1089,7 @@ async function fetchWeather() {
 // Subtle Home footer: server status, tablet URL, version, last refresh.
 async function fillHomeStatus() {
     setText('home-ff-url', window.location.origin);
-    const vi = document.getElementById('version-indicator');
-    if (vi) setText('home-ff-version', vi.textContent.replace('FireFrame', '').trim() || '—');
+    setText('home-ff-version', window.FF_VERSION || '—');
     try {
         const s = await (await fetch('/api/status')).json();
         setStatus('home-ff-server', s.message || 'Running', 'ok');

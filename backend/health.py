@@ -14,16 +14,15 @@ from backend.config_loader import (
     PORT,
     SHORTCUT_ACTIONS,
     DASHBOARD_PASSWORD,
-    SESSION_SECRET,
     CONFIG_IS_LOCAL,
 )
 from backend.photos import PHOTOS_DIR, get_photos_payload
 from backend.bluetooth import get_bluetooth_support
 from backend.calendar_service import get_calendar_status, get_today
 
-# The shipped defaults; matching them means the user hasn't set their own yet.
+# The shipped default; matching it means the user hasn't set their own password
+# yet. (A default SESSION_SECRET can't reach here: the server refuses to start.)
 _DEFAULT_PASSWORD = "change-me"
-_DEFAULT_SECRET = "change-this-random-string"
 
 
 def _calendar() -> dict:
@@ -71,7 +70,6 @@ def get_settings_status() -> dict:
         "config": {
             "local_config": bool(CONFIG_IS_LOCAL),
             "password_is_default": DASHBOARD_PASSWORD == _DEFAULT_PASSWORD,
-            "secret_is_default": SESSION_SECRET == _DEFAULT_SECRET,
         },
         "calendar": _calendar(),
         "photos": _photos(),

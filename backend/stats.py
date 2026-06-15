@@ -34,7 +34,7 @@ def _disk():
     return data
 
 
-def get_mac_stats() -> dict:
+def get_home_stats() -> dict:
     cpu_percent = psutil.cpu_percent(interval=None)  # non-blocking (primed above)
 
     mem = psutil.virtual_memory()
@@ -55,18 +55,12 @@ def get_mac_stats() -> dict:
 
     uptime_seconds = int(time.time() - BOOT_TIME)
 
-    # GPU skipped on purpose: system_profiler is slow and leaks identifiers.
-    gpu_available = False
-    gpu_note = "GPU stats unavailable on this macOS setup without heavy polling."
-
     return {
         "cpu_percent": cpu_percent,
         "ram_percent": ram_percent,
         "ram_used_gb": ram_used_gb,
         "ram_total_gb": ram_total_gb,
         **_disk(),
-        "gpu_available": gpu_available,
-        "gpu_note": gpu_note,
         "battery_available": battery_available,
         "battery_percent": battery_percent,
         "battery_charging": battery_charging,
