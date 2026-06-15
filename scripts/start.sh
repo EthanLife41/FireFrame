@@ -9,11 +9,14 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
-# Export .env so HOST/PORT are visible below. Sourcing handles inline comments.
+# The app reads .env itself (via python-dotenv). start.sh only needs HOST and
+# PORT for the port check and the uvicorn flags, so read just those two values.
+# (Sourcing the whole file would choke on values with spaces, e.g. a Shortcut
+# name like "FireFrame Weather".)
+_env_value() { grep -E "^$1=" .env | tail -n 1 | cut -d '=' -f2- | cut -d '#' -f1 | tr -d ' "'; }
 if [ -f .env ]; then
-    set -a
-    . ./.env
-    set +a
+    HOST=$(_env_value HOST)
+    PORT=$(_env_value PORT)
 fi
 
 HOST=${HOST:-0.0.0.0}

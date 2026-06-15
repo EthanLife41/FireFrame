@@ -3,3 +3,4 @@ uvicorn==0.34.0
 python-dotenv==1.0.1
 itsdangerous==2.2.0
 psutil==6.1.1
+pyobjc-framework-EventKit; sys_platform == "darwin"

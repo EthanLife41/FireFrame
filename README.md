@@ -33,7 +33,7 @@ Treat the tablet as untrusted and do not sign it into personal accounts. Run Fir
 - A Mac for the full feature set.
 - Python 3.10+.
 - A tablet or any device with a browser. The Fire tablet uses [Fully Kiosk Browser](https://www.fully-kiosk.com/) in order to keep the tablet fully fullscreen.
-- Optional: [`blueutil`](https://github.com/toy/blueutil) for Bluetooth connect/disconnect, and `pyobjc-framework-EventKit` for fast Apple Calendar reads.
+- Optional: [`blueutil`](https://github.com/toy/blueutil) for Bluetooth connect/disconnect. The fast Apple Calendar reader (`pyobjc-framework-EventKit`) is in `requirements.txt` and installs automatically on macOS; on other systems pip skips it.
 
 ## Setup
 
@@ -82,7 +82,7 @@ Set `CALENDAR_SOURCE`, restart, and open the Calendar tab. It is a schedule grid
 **Apple Calendar (`apple`) is the recommended source.** It reads every calendar in Calendar.app (including Google accounts if added there) and expands recurring events.
 
 1. Set `CALENDAR_SOURCE=apple`.
-2. Install the fast reader (macOS only) into the same environment that runs the server: `./.venv/bin/python -m pip install pyobjc-framework-EventKit`. Without it, FireFrame falls back to a slower AppleScript path that can time out on large calendars.
+2. The fast reader (`pyobjc-framework-EventKit`) installs automatically on macOS with `pip install -r requirements.txt`. If your calendar is slow, it is missing (for example after rebuilding the virtualenv); reinstall it into the same environment that runs the server with `./.venv/bin/pip install pyobjc-framework-EventKit`. Without it, FireFrame falls back to a slower AppleScript path that can time out on large calendars.
 3. Restart. The first load asks for Calendar access; approve it. If it errors, enable it under System Settings > Privacy & Security > Calendars (and Automation if you are on the AppleScript fallback). The grant attaches to whatever launches the server, so re-approve if you change how you start it.
 
 **ICS file or URL (`ics`)** suits a single calendar without Calendar.app. For Google, open the calendar's Settings and sharing > Integrate calendar > Secret address in iCal format, then:
@@ -242,6 +242,15 @@ python3 -m venv .venv
 ```
 
 To reach a remote dev box without exposing a port: `ssh -L 8765:127.0.0.1:8765 <dev-box>`.
+
+### Tests
+
+The suite covers auth, the session-cookie signing, and action dispatch/input sanitizing. It runs anywhere (no macOS or network needed):
+
+```bash
+./.venv/bin/python -m pip install -r requirements-dev.txt
+./.venv/bin/python -m pytest
+```
 
 ## Troubleshooting
 

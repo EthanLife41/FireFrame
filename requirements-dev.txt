@@ -1,0 +1,5 @@
+# Dev/test-only dependencies. Install with:
+#   ./.venv/bin/python -m pip install -r requirements-dev.txt
+# then run the suite with:  ./.venv/bin/python -m pytest
+pytest>=8,<9
+httpx>=0.27   # used by Starlette's TestClient
