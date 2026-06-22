@@ -138,6 +138,14 @@
                     </div>
                 </div>
 
+                <div class="card home-card home-tasks">
+                    <div class="card-head">
+                        <div class="card-label">Tasks</div>
+                        <button class="btn small-btn ghost-btn" id="home-add-task">Add</button>
+                    </div>
+                    <div id="home-tasks-list" class="home-tasks-list"></div>
+                </div>
+
                 <div class="card home-card home-weather hidden" id="home-weather-card">
                     <div class="card-label">Weather</div>
                     <div id="home-weather" class="home-weather-text">—</div>
@@ -281,6 +289,7 @@
                         <button class="seg-btn" id="cal-view-day" data-view="day">Day</button>
                         <button class="seg-btn active" id="cal-view-week" data-view="week">Week</button>
                     </div>
+                    <button class="btn small-btn" id="cal-add-task">+ Task</button>
                     <button class="btn small-btn" id="cal-refresh-btn" aria-label="Refresh calendar">⟳</button>
                 </div>
             </div>
@@ -580,6 +589,50 @@
     <span class="timer-chip-dot"></span>
     <span id="timer-chip-time" class="timer-chip-time">00:00</span>
 </button>
+
+<!-- Task creation modal (UI says "task"; creates a calendar block) -->
+<div id="task-modal" class="modal hidden">
+    <div class="modal-box card task-box">
+        <h2>New Task</h2>
+        <div class="task-form">
+            <label class="task-field">
+                <span class="task-label">Title</span>
+                <input type="text" id="task-title" class="task-input" maxlength="200" placeholder="What needs doing?" autocomplete="off">
+            </label>
+            <div class="task-row">
+                <label class="task-field">
+                    <span class="task-label">Date</span>
+                    <input type="date" id="task-date" class="task-input">
+                </label>
+                <label class="task-field">
+                    <span class="task-label">Start</span>
+                    <input type="time" id="task-time" class="task-input" step="300">
+                </label>
+            </div>
+            <div class="task-field">
+                <span class="task-label">Importance</span>
+                <div class="seg" role="group" aria-label="Importance">
+                    <button type="button" class="seg-btn active" data-importance="regular">Regular</button>
+                    <button type="button" class="seg-btn" data-importance="important">Important</button>
+                </div>
+                <p id="task-duration-hint" class="task-hint"></p>
+            </div>
+            <label class="task-field hidden" id="task-cal-field">
+                <span class="task-label">Calendar</span>
+                <select id="task-calendar" class="task-input task-select"></select>
+            </label>
+            <label class="task-field">
+                <span class="task-label">Notes <span class="task-optional">(optional)</span></span>
+                <textarea id="task-notes" class="task-input task-textarea" maxlength="2000" rows="2"></textarea>
+            </label>
+            <p id="task-error" class="error-text hidden"></p>
+        </div>
+        <div class="modal-row">
+            <button class="btn" id="task-cancel-btn">Cancel</button>
+            <button class="btn primary-btn" id="task-save-btn">Add Task</button>
+        </div>
+    </div>
+</div>
 
 <!-- Toast -->
 <div id="toast" class="toast hidden"></div>

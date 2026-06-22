@@ -27,3 +27,12 @@ same name; backend/config_loader.py stays the source of truth for the rest.
 #
 # PREPARE_APPS = ["Spotify", "Discord"]
 # PREPARE_URLS = ["https://www.google.com"]
+
+# --- Tasks -----------------------------------------------------------------
+# Scheduled calendar blocks. Leave TASK_DEFAULT_CALENDAR blank to auto-pick a
+# calendar named like "Tasks" (else the system default), or set a name to force
+# the target. Durations are per importance level, in minutes.
+#
+# TASK_DEFAULT_CALENDAR = ""
+# TASK_REGULAR_DURATION_MINUTES = 60
+# TASK_IMPORTANT_DURATION_MINUTES = 240

@@ -64,6 +64,7 @@ function init() {
     setupMacStats();
     setupSettings();
     setupHome();
+    setupTasks();
     setupVisibility();
 }
 
@@ -173,6 +174,7 @@ function showMainApp() {
     loadHomeNextEvent();
     fillHomeStatus();
     fetchWeather();
+    loadHomeTasks();
     startStatsPolling();
 }
 
@@ -364,7 +366,7 @@ function switchTab(tabId) {
     if (tabId === 'photos') { startPhotoShow(); } else { stopPhotoShow(); }
     if (tabId === 'bluetooth') { loadBluetooth(); }
     if (tabId === 'calendar' && !calLoaded) { loadCalendarView(); }
-    if (tabId === 'home') { loadHomeNextEvent(); }
+    if (tabId === 'home') { loadHomeNextEvent(); loadHomeTasks(); }
     if (tabId === 'settings') { loadSettings(); }
     // Mac Stats polls only while its tab is open, to stay cheap in the background.
     if (tabId === 'mac-stats') { startMacStats(); } else { stopMacStats(); }
@@ -686,6 +688,7 @@ function setupCalendar() {
     on('cal-refresh-btn', () => loadCalendarView(true));
     on('cal-view-day',    () => setCalView('day'));
     on('cal-view-week',   () => setCalView('week'));
+    on('cal-add-task',    openTaskModal);
 }
 
 function setCalView(v) {
@@ -792,18 +795,50 @@ function calHue(name) {
     return h;
 }
 
+// Hue (0-359) of a #RRGGBB colour, or null if it isn't a valid hex string.
+function hexToHue(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    const r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    if (d === 0) return 0;
+    let h;
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    return (Math.round(h * 60) + 360) % 360;
+}
+
+// Prefer the calendar's real Apple colour (hex), fall back to the name hash.
+// Using the hue (not the raw colour) keeps FireFrame's dark-mode-tuned tones,
+// so event blocks stay readable instead of glaring.
+function hueForCalendar(name, colorHex) {
+    if (colorHex) {
+        const h = hexToHue(colorHex);
+        if (h !== null) return h;
+    }
+    return calHue(name);
+}
+
 function renderSourceChips(events) {
     const wrap = document.getElementById('cal-sources');
     if (!wrap) return;
-    const names = [];
+    const cals = [];
     const seen = new Set();
-    events.forEach(e => { if (e.calendar && !seen.has(e.calendar)) { seen.add(e.calendar); names.push(e.calendar); } });
-    if (names.length <= 1) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+    events.forEach(e => {
+        if (e.calendar && !seen.has(e.calendar)) {
+            seen.add(e.calendar);
+            cals.push({ name: e.calendar, color: e.calendar_color });
+        }
+    });
+    if (cals.length <= 1) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
     wrap.classList.remove('hidden');
     wrap.innerHTML = '';
-    names.forEach(n => {
+    cals.forEach(c => {
+        const n = c.name;
         const chip = el('button', 'cal-chip' + (calHidden.has(n) ? ' off' : ''));
-        chip.style.setProperty('--chip-hue', calHue(n));
+        chip.style.setProperty('--chip-hue', hueForCalendar(n, c.color));
         chip.appendChild(el('span', 'cal-chip-dot'));
         chip.appendChild(el('span', '', n));
         chip.addEventListener('click', () => {
@@ -910,7 +945,7 @@ function allDayLayout(days, events) {
 function allDayBlock(it) {
     const ev = it.ev;
     const b = el('div', 'cal-allday-ev', ev.title);
-    b.style.setProperty('--ev-hue', calHue(ev.calendar));
+    b.style.setProperty('--ev-hue', hueForCalendar(ev.calendar, ev.calendar_color));
     b.style.gridColumn = `${2 + it.startIdx} / span ${it.span}`;   // +1 axis, +1 to 1-base
     b.style.gridRow = String(it.lane + 1);
     if (ev.location) b.title = ev.location;
@@ -959,7 +994,7 @@ function layoutTimed(day, events) {
 function timedBlock(it, nCols) {
     const ev = it.ev;
     const b = el('div', 'cal-event');
-    b.style.setProperty('--ev-hue', calHue(ev.calendar));
+    b.style.setProperty('--ev-hue', hueForCalendar(ev.calendar, ev.calendar_color));
     b.style.top = (it.startH * CAL_HOUR_PX) + 'px';
     b.style.height = Math.max(16, (it.endH - it.startH) * CAL_HOUR_PX - 2) + 'px';
     const w = 100 / nCols;
@@ -991,7 +1026,7 @@ function showEventDetails(ev) {
 
     set('ev-detail-title', ev.title || 'Untitled');
     const dot = document.getElementById('ev-detail-dot');
-    if (dot) dot.style.background = `hsl(${calHue(ev.calendar)}, 70%, 60%)`;
+    if (dot) dot.style.background = `hsl(${hueForCalendar(ev.calendar, ev.calendar_color)}, 70%, 60%)`;
 
     const s = new Date(ev.start), e = new Date(ev.end);
     set('ev-detail-when', ev.all_day ? 'All day' : `${fmtTime(ev.start)} – ${fmtTime(ev.end)}`);
@@ -1672,6 +1707,201 @@ function updateChip() {
     chip.classList.toggle('done', tmrMode === 'finished');
     chip.classList.toggle('paused', tmrMode === 'paused');
     setText('timer-chip-time', tmrMode === 'finished' ? 'Done' : fmtClock(tmrRemaining));
+}
+
+// ============================================================
+// TASKS  (create a scheduled calendar block from the tablet)
+// The UI says "task"; each one becomes a real Apple Calendar event sized by
+// importance (Regular vs Important). All reads/writes go through /api/tasks.
+// ============================================================
+let taskImportance = 'regular';
+let taskConfig = null;          // { available, regular_minutes, important_minutes }
+
+function setupTasks() {
+    const on = (id, fn) => { const node = document.getElementById(id); if (node) node.addEventListener('click', fn); };
+    on('home-add-task', openTaskModal);
+    on('task-cancel-btn', closeTaskModal);
+    on('task-save-btn', submitTask);
+    document.querySelectorAll('#task-modal [data-importance]').forEach(btn => {
+        btn.addEventListener('click', () => setTaskImportance(btn.getAttribute('data-importance')));
+    });
+    const modal = document.getElementById('task-modal');
+    if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeTaskModal(); });
+}
+
+function openTaskModal() {
+    const modal = document.getElementById('task-modal');
+    if (!modal) return;
+    const title = document.getElementById('task-title');
+    const date = document.getElementById('task-date');
+    const time = document.getElementById('task-time');
+    const notes = document.getElementById('task-notes');
+    if (title) title.value = '';
+    if (notes) notes.value = '';
+    if (date) date.value = ymd(new Date());
+    if (time) time.value = nextHalfHour();
+    setTaskImportance('regular');
+    setTaskError('');
+    modal.classList.remove('hidden');
+    if (title) setTimeout(() => title.focus(), 50);
+    loadTaskMeta();
+}
+
+function closeTaskModal() {
+    const modal = document.getElementById('task-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// "HH:MM" for the next upcoming half-hour (e.g. 4:53 -> 05:00, 4:20 -> 04:30).
+function nextHalfHour() {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    if (d.getMinutes() < 30) d.setMinutes(30);
+    else { d.setMinutes(0); d.setHours(d.getHours() + 1); }
+    const pad = n => String(n).padStart(2, '0');
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function setTaskImportance(level) {
+    taskImportance = level === 'important' ? 'important' : 'regular';
+    document.querySelectorAll('#task-modal [data-importance]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-importance') === taskImportance);
+    });
+    updateDurationHint();
+}
+
+function updateDurationHint() {
+    const hint = document.getElementById('task-duration-hint');
+    if (!hint) return;
+    let mins = taskImportance === 'important' ? 240 : 60;
+    if (taskConfig) mins = taskImportance === 'important' ? taskConfig.important_minutes : taskConfig.regular_minutes;
+    hint.textContent = 'Books a ' + describeDuration(mins) + ' block';
+}
+
+function describeDuration(mins) {
+    mins = mins || 0;
+    if (mins % 60 === 0) return (mins / 60) + 'h';
+    if (mins > 60) return Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+    return mins + ' min';
+}
+
+function setTaskError(msg) {
+    const e = document.getElementById('task-error');
+    if (!e) return;
+    if (msg) { e.textContent = msg; e.classList.remove('hidden'); }
+    else { e.textContent = ''; e.classList.add('hidden'); }
+}
+
+// Load durations + the calendar picker once the modal is open.
+async function loadTaskMeta() {
+    try {
+        taskConfig = await (await fetch('/api/tasks/config')).json();
+        updateDurationHint();
+    } catch { /* keep the built-in defaults */ }
+    await loadTaskCalendars();
+}
+
+async function loadTaskCalendars() {
+    const field = document.getElementById('task-cal-field');
+    const select = document.getElementById('task-calendar');
+    if (!field || !select) return;
+    try {
+        const res = await fetch('/api/tasks/calendars');
+        if (!res.ok) { field.classList.add('hidden'); return; }
+        const d = await res.json();
+        const cals = d.calendars || [];
+        if (!d.available || !cals.length) {
+            field.classList.add('hidden');
+            if (d.message && taskConfig && !taskConfig.available) setTaskError(d.message);
+            return;
+        }
+        select.innerHTML = '';
+        cals.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            if (c.id === d.suggested_id) opt.selected = true;
+            select.appendChild(opt);
+        });
+        // Only show the picker when there's an actual choice to make.
+        field.classList.toggle('hidden', cals.length < 2);
+    } catch {
+        field.classList.add('hidden');
+    }
+}
+
+async function submitTask() {
+    const title = (document.getElementById('task-title').value || '').trim();
+    const date = document.getElementById('task-date').value;
+    const time = document.getElementById('task-time').value;
+    const notes = (document.getElementById('task-notes').value || '').trim();
+    const field = document.getElementById('task-cal-field');
+    const select = document.getElementById('task-calendar');
+    const calendarId = (field && !field.classList.contains('hidden') && select) ? select.value : '';
+
+    if (!title) return setTaskError('Give the task a title.');
+    if (!date) return setTaskError('Pick a date.');
+    if (!time) return setTaskError('Pick a start time.');
+    setTaskError('');
+
+    const save = document.getElementById('task-save-btn');
+    const label = save ? save.textContent : '';
+    if (save) { save.disabled = true; save.textContent = 'Adding...'; }
+    try {
+        const res = await fetch('/api/tasks/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, date, time, importance: taskImportance, notes, calendar_id: calendarId })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            setTaskError((data && data.message) || 'Could not create the task.');
+            return;
+        }
+        closeTaskModal();
+        showToast(data.message || 'Task added.');
+        loadHomeTasks();
+        if (calLoaded) loadCalendarView(true);   // surface the new block
+    } catch {
+        setTaskError('Connection error. Try again.');
+    } finally {
+        if (save) { save.disabled = false; save.textContent = label; }
+    }
+}
+
+async function loadHomeTasks() {
+    const wrap = document.getElementById('home-tasks-list');
+    if (!wrap) return;
+    try {
+        renderHomeTasks(await (await fetch('/api/tasks/upcoming')).json());
+    } catch {
+        wrap.innerHTML = '';
+        wrap.appendChild(el('div', 'home-empty', 'Could not load tasks.'));
+    }
+}
+
+function renderHomeTasks(d) {
+    const wrap = document.getElementById('home-tasks-list');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const items = (d && d.tasks) || [];
+    if (!d || !d.available || !items.length) {
+        wrap.appendChild(el('div', 'home-empty', 'No upcoming tasks. Tap Add to block time.'));
+        return;
+    }
+    items.forEach(ev => {
+        const row = el('div', 'home-task');
+        row.appendChild(el('div', 'home-task-when', taskWhen(ev.start)));
+        row.appendChild(el('div', 'home-task-title', ev.title));
+        wrap.appendChild(row);
+    });
+}
+
+function taskWhen(iso) {
+    const d = new Date(iso);
+    const sameDay = d.toDateString() === new Date().toDateString();
+    const day = sameDay ? 'Today' : d.toLocaleDateString([], { weekday: 'short' });
+    return day + ' ' + fmtTime(iso);
 }
 
 // ============================================================

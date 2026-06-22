@@ -91,6 +91,12 @@ _DEFAULTS = {
     # Bluetooth
     "BLUETOOTH_ALLOW_CONNECT": _flag("BLUETOOTH_ALLOW_CONNECT"),
     "BLUEUTIL_PATH": os.getenv("BLUEUTIL_PATH", ""),
+    # Tasks: scheduled calendar blocks created from FireFrame. A task lands in a
+    # calendar named like "Tasks" when one exists, else TASK_DEFAULT_CALENDAR (by
+    # name), else a calendar the user picks. Durations are per importance level.
+    "TASK_DEFAULT_CALENDAR": os.getenv("TASK_DEFAULT_CALENDAR", ""),
+    "TASK_REGULAR_DURATION_MINUTES": int(os.getenv("TASK_REGULAR_DURATION_MINUTES", "60")),
+    "TASK_IMPORTANT_DURATION_MINUTES": int(os.getenv("TASK_IMPORTANT_DURATION_MINUTES", "240")),
     # Buttons tab
     "SHORTCUT_ACTIONS": _SHORTCUT_ACTIONS_DEFAULT,
     # "Prepare" opens these apps and links. Keep them generic in a public repo.

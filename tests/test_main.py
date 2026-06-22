@@ -3,7 +3,8 @@ import backend.main as main
 
 
 PROTECTED_GET = ["/api/me", "/api/status", "/api/stats", "/api/settings",
-                 "/api/calendar/today", "/api/photos", "/api/bluetooth/status"]
+                 "/api/calendar/today", "/api/photos", "/api/bluetooth/status",
+                 "/api/tasks/config", "/api/tasks/calendars", "/api/tasks/upcoming"]
 
 
 def test_protected_endpoints_require_a_session(client):
@@ -13,6 +14,11 @@ def test_protected_endpoints_require_a_session(client):
 
 def test_action_endpoint_requires_a_session(client):
     assert client.post("/api/action", json={"action": "mute"}).status_code == 401
+
+
+def test_task_create_requires_a_session(client):
+    body = {"title": "x", "date": "2026-06-23", "time": "14:00"}
+    assert client.post("/api/tasks/create", json=body).status_code == 401
 
 
 def test_login_with_wrong_password_is_401_and_counts_down(client):

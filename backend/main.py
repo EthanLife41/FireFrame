@@ -20,6 +20,7 @@ from backend.bluetooth import (
 from backend.stats import get_home_stats
 from backend.mac_stats import get_mac_stats as get_dashboard_stats
 from backend.health import get_settings_status
+from backend import tasks
 from backend.photos import get_photos_payload, get_random_photo, open_photos_dir, PHOTOS_DIR
 from backend.calendar_service import (
     get_today,
@@ -109,6 +110,14 @@ class DeviceRequest(BaseModel):
 class TimerNotifyRequest(BaseModel):
     minutes: int = 0
     label: str = ""
+
+class TaskCreateRequest(BaseModel):
+    title: str
+    date: str
+    time: str
+    importance: str = "regular"
+    notes: str = ""
+    calendar_id: str = ""
 
 # --- Routes ---
 
@@ -226,6 +235,22 @@ async def timer_notify(req: TimerNotifyRequest, user: bool = Depends(get_current
 @app.get("/api/weather")
 async def weather(user: bool = Depends(get_current_user)):
     return get_weather()
+
+@app.get("/api/tasks/config")
+async def tasks_config(user: bool = Depends(get_current_user)):
+    return tasks.get_config()
+
+@app.get("/api/tasks/calendars")
+async def tasks_calendars(user: bool = Depends(get_current_user)):
+    return tasks.get_calendars()
+
+@app.get("/api/tasks/upcoming")
+async def tasks_upcoming(user: bool = Depends(get_current_user)):
+    return tasks.get_upcoming()
+
+@app.post("/api/tasks/create")
+async def tasks_create(req: TaskCreateRequest, user: bool = Depends(get_current_user)):
+    return tasks.create_task(req.title, req.date, req.time, req.importance, req.notes, req.calendar_id)
 
 @app.post("/api/photos/open")
 async def photos_open(user: bool = Depends(get_current_user)):

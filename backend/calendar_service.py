@@ -116,6 +116,9 @@ def _shape(events: list) -> list:
                 "description": desc,
                 "calendar": name,
                 "calendar_id": hashlib.sha1(name.encode("utf-8")).hexdigest()[:8] if name else "",
+                # Real Apple Calendar colour when available (EventKit); the client
+                # falls back to a stable name-derived colour for other sources.
+                "calendar_color": ev.get("calendar_color") or None,
                 "_start_dt": start,
                 "_end_dt": end,
             }
@@ -290,13 +293,23 @@ def _query_apple_calendar(start_dt: datetime, end_dt: datetime) -> list:
 
 
 # EventKit (PyObjC) is the fast path: it skips Calendar.app's very slow
-# AppleScript "whose" queries. Optional, macOS only:
-#     pip install pyobjc-framework-EventKit
+# AppleScript "whose" queries, and it's also how FireFrame creates task events
+# (inputs are passed as native objects, never interpolated into a script).
+# Optional, macOS only:  pip install pyobjc-framework-EventKit
 _eventkit = {"checked": False, "ok": False}
 
 # EKAuthorizationStatus values
 _EK_DENIED = 2
 _EK_AUTHORIZED = 3   # also "full access" on macOS 14+
+
+# Shown when Calendar access is missing; reused by the task service.
+PERMISSION_HINT = ("FireFrame needs Calendar access. Enable it in System Settings > "
+                   "Privacy & Security > Calendars (and approve any Automation prompt), "
+                   "then try again.")
+
+
+class CalendarWriteError(Exception):
+    """Raised when an Apple Calendar event cannot be created."""
 
 
 def _eventkit_available() -> bool:
@@ -311,10 +324,17 @@ def _eventkit_available() -> bool:
     return _eventkit["ok"]
 
 
-def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
-    import threading
+def is_eventkit_available() -> bool:
+    """Public check for callers (e.g. the task service) deciding whether the
+    fast EventKit path — required for creating events — is usable."""
+    return _eventkit_available()
+
+
+def _authorized_store():
+    """Return an EKEventStore with events access, requesting it once if needed.
+    Raises PermissionError if access is denied. EventKit only (macOS)."""
+    import threading as _threading
     from EventKit import EKEventStore
-    from Foundation import NSDate
 
     status = EKEventStore.authorizationStatusForEntityType_(0)  # 0 = events
     if status == _EK_DENIED:
@@ -323,7 +343,7 @@ def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
     store = EKEventStore.alloc().init()
     if status != _EK_AUTHORIZED:
         granted = {"ok": False}
-        done = threading.Event()
+        done = _threading.Event()
 
         def handler(ok, err):
             granted["ok"] = bool(ok)
@@ -336,7 +356,32 @@ def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
         done.wait(timeout=20)
         if not granted["ok"]:
             raise PermissionError("calendar_access_denied")
+    return store
 
+
+def _calendar_color_hex(cal):
+    """Hex colour (e.g. '#34C759') for an EKCalendar, or None if unavailable.
+    Best-effort: any failure lets the client fall back to a name-derived colour."""
+    try:
+        from AppKit import NSColorSpace
+        color = cal.color()
+        if color is None:
+            return None
+        rgb = color.colorUsingColorSpace_(NSColorSpace.sRGBColorSpace())
+        if rgb is None:
+            return None
+        r = int(round(rgb.redComponent() * 255))
+        g = int(round(rgb.greenComponent() * 255))
+        b = int(round(rgb.blueComponent() * 255))
+        return "#%02X%02X%02X" % (r, g, b)
+    except Exception:
+        return None
+
+
+def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
+    from Foundation import NSDate
+
+    store = _authorized_store()
     ns_start = NSDate.dateWithTimeIntervalSince1970_(start_dt.timestamp())
     ns_end = NSDate.dateWithTimeIntervalSince1970_(end_dt.timestamp())
     predicate = store.predicateForEventsWithStartDate_endDate_calendars_(ns_start, ns_end, None)
@@ -355,10 +400,72 @@ def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
                 "location": ev.location() or "",
                 "description": ev.notes() or "",
                 "calendar": cal.title() if cal else "",
+                "calendar_color": _calendar_color_hex(cal) if cal else None,
             })
         except Exception:
             pass
     return out
+
+
+def writable_calendars() -> list:
+    """Calendars that accept new events (id, name, colour hex, is_default),
+    default first then alphabetical. EventKit only; raises PermissionError."""
+    store = _authorized_store()
+    default_cal = store.defaultCalendarForNewEvents()
+    default_id = default_cal.calendarIdentifier() if default_cal else None
+    out = []
+    for cal in (store.calendarsForEntityType_(0) or []):
+        try:
+            if not cal.allowsContentModifications():
+                continue
+            cid = cal.calendarIdentifier()
+            out.append({
+                "id": cid,
+                "name": cal.title() or "Calendar",
+                "color": _calendar_color_hex(cal),
+                "is_default": cid == default_id,
+            })
+        except Exception:
+            pass
+    out.sort(key=lambda c: (not c["is_default"], c["name"].lower()))
+    return out
+
+
+def create_event(title: str, start: datetime, end: datetime,
+                 notes: str = "", calendar_id: str = "") -> str:
+    """Create an Apple Calendar event via EventKit and return its identifier.
+    Targets the given calendar_id, else the default new-event calendar. Raises
+    PermissionError or CalendarWriteError."""
+    from EventKit import EKEvent
+    from Foundation import NSDate
+
+    store = _authorized_store()
+    target = store.calendarWithIdentifier_(calendar_id) if calendar_id else None
+    if target is None:
+        target = store.defaultCalendarForNewEvents()
+    if target is None:
+        raise CalendarWriteError("No writable calendar is available.")
+    if not target.allowsContentModifications():
+        raise CalendarWriteError("That calendar is read-only.")
+
+    event = EKEvent.eventWithEventStore_(store)
+    event.setTitle_(title)
+    event.setStartDate_(NSDate.dateWithTimeIntervalSince1970_(start.timestamp()))
+    event.setEndDate_(NSDate.dateWithTimeIntervalSince1970_(end.timestamp()))
+    if notes:
+        event.setNotes_(notes)
+    event.setCalendar_(target)
+
+    ok, err = store.saveEvent_span_error_(event, 0, None)   # 0 = EKSpanThisEvent
+    if not ok:
+        detail = ""
+        try:
+            if err is not None:
+                detail = str(err.localizedDescription())
+        except Exception:
+            detail = ""
+        raise CalendarWriteError(detail or "Apple Calendar rejected the event.")
+    return event.eventIdentifier()
 
 
 def _apple_fetch(start_dt: datetime, end_dt: datetime) -> list:

@@ -19,7 +19,8 @@ I got a Fire HD 8 for free. Fire OS is too locked down and the hardware too slow
 - **Home** is the dashboard: clock, next calendar events, CPU/memory/storage/battery meters, Bluetooth status, an inline timer, quick actions, and an app launcher.
 - **Buttons** is the full control deck, grouped into Focus modes, Mac controls, app launches, timers, and maintenance.
 - **Bluetooth** lists paired devices and connects/disconnects them (with `blueutil` installed).
-- **Calendar** shows a day/week schedule grid from Apple Calendar, an `.ics` file or URL, or demo data.
+- **Calendar** shows a day/week schedule grid from Apple Calendar, an `.ics` file or URL, or demo data, coloured per calendar.
+- **Tasks** turn a title, date, and importance into a scheduled Apple Calendar block (Regular = 1 hour, Important = 4 hours), created from Home or the Calendar tab.
 - **Stats** is a live view of CPU, memory, storage, battery, network throughput, and top processes.
 - **Photos** is a slideshow with shuffle, pause, lock, and manual navigation.
 - **Timers** are preset or custom countdowns that finish with a quiet macOS notification.
@@ -76,6 +77,9 @@ Everything is set in `.env` (copied from `.env.example`). Nothing personal is co
 | `TIMER_SOUND` | `Glass` | macOS sound for the timer notification; `""` for silent |
 | `WEATHER_ENABLED` | `0` | Set `1` to show the optional weather card |
 | `WEATHER_SHORTCUT` | `FireFrame Weather` | Shortcut that prints the weather string |
+| `TASK_DEFAULT_CALENDAR` | empty | Force a task target calendar by name (else auto-pick) |
+| `TASK_REGULAR_DURATION_MINUTES` | `60` | Length of a Regular task block |
+| `TASK_IMPORTANT_DURATION_MINUTES` | `240` | Length of an Important task block |
 
 ## Calendar
 
@@ -97,6 +101,17 @@ CALENDAR_ICS_PATH=https://calendar.google.com/calendar/ical/.../basic.ics
 That URL is a credential. Keep it in `.env` (gitignored) and never commit it. The built-in parser does not expand recurring events, so prefer `apple` for recurring-heavy calendars. For several calendars at once, list paths in `CALENDAR_ICS_PATHS` separated by `:`.
 
 **`demo`** shows placeholder events; **`none`** (the default) shows "not connected".
+
+## Tasks
+
+A FireFrame *task* is a scheduled calendar block, not an Apple Reminder. You give it a title, date, start time, and an importance level, and FireFrame creates a real Apple Calendar event:
+
+- **Regular** sets a 1-hour block.
+- **Important** sets a 4-hour block, for work that needs real time.
+
+Both lengths are configurable (`TASK_REGULAR_DURATION_MINUTES`, `TASK_IMPORTANT_DURATION_MINUTES`). Create a task from **Add** on the Home Tasks card or **+ Task** in the Calendar toolbar; the Home card lists the next few upcoming blocks, and the Calendar view refreshes to show a new one after you save.
+
+**Where tasks go.** FireFrame files a task into the first calendar whose name contains "task" (case-insensitive, so `Tasks`, `Task`, `My Tasks`, or a `Google Tasks` calendar synced into Calendar.app all match). If none exists, it uses your default Calendar.app calendar. When you have more than one writable calendar a picker appears, with the suggested one pre-selected. To force a target regardless, set `TASK_DEFAULT_CALENDAR` to its exact name. To get a dedicated calendar, in Calendar.app choose File > New Calendar and name it `Tasks` (create it under a Google account there if you want it on Google Calendar).
 
 ## Bluetooth
 
