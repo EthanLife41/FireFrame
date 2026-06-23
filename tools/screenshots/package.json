@@ -1,0 +1,15 @@
+{
+  "name": "fireframe-screenshots",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generate polished, GitHub-ready FireFrame screenshots with Playwright.",
+  "scripts": {
+    "setup": "npm install && npx playwright install chromium",
+    "shots": "node capture.mjs",
+    "shots:hires": "FF_VIEWPORT=1920x1200 FF_SCALE=1 node capture.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

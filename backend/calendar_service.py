@@ -45,7 +45,7 @@ _MAX_MONTHS = 12      # cap on months held in memory
 # Serialise expensive reads so two requests never spawn osascript at once.
 _fetch_lock = threading.Lock()
 
-# One long-lived EKEventStore, reused across reads and writes (see _authorized_store).
+# One shared EKEventStore, reused across reads and writes.
 _store_cache = {"store": None}
 
 
@@ -337,9 +337,8 @@ def is_eventkit_available() -> bool:
 
 
 def _authorized_store():
-    """Return the shared EKEventStore, requesting access on first use. Reusing
-    one store keeps reads consistent with writes and avoids the empty results a
-    just-created store can return. Raises PermissionError if access is denied."""
+    """Return the shared EKEventStore, requesting access on first use.
+    Raises PermissionError if access is denied."""
     import threading as _threading
     from EventKit import EKEventStore
 
@@ -395,7 +394,7 @@ def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
     from Foundation import NSDate
 
     store = _authorized_store()
-    # Pull in changes made since the store was created (e.g. a newly added task).
+    # Pick up changes made since the store was created.
     try:
         store.refreshSourcesIfNecessary()
     except Exception:
@@ -761,7 +760,6 @@ def invalidate_cache() -> None:
 
 
 def refresh_calendar() -> dict:
-    """Drop the read caches so the next fetch reloads from the source. The
-    caller does the reload, keeping a refresh to a single read."""
+    """Invalidate the read caches and return current status; the caller reloads."""
     invalidate_cache()
     return get_calendar_status()

@@ -400,7 +400,7 @@
                 </div>
 
                 <!-- Network speed -->
-                <div class="card ms-card">
+                <div class="card ms-card ms-netspeed">
                     <div class="card-label">Network Speed</div>
                     <div class="ms-speed-row">
                         <div class="ms-speed-item"><span class="ms-speed-arrow down">↓</span><span class="ms-speed-val" id="ms-down">—</span></div>
@@ -415,7 +415,7 @@
                 </div>
 
                 <!-- Top processes -->
-                <div class="card ms-card ms-wide">
+                <div class="card ms-card ms-proc">
                     <div class="card-label">Top Processes</div>
                     <div class="ms-proc-cols">
                         <div class="ms-proc-col">
@@ -677,6 +677,9 @@
 <div class="app-version">{{VERSION}}</div>
 
 <script>window.FF_VERSION = "{{VERSION}}";</script>
+<!-- Demo/screenshot mode. Inert unless the page is opened with ?demo=true.
+     Must load before app.js so it can stub /api/* for sample data. -->
+<script src="/static/demo.js?v={{JS_VERSION}}"></script>
 <script src="/static/app.js?v={{JS_VERSION}}"></script>
 </body>
 </html>

@@ -10,6 +10,18 @@ FireFrame turns a cheap Amazon Fire tablet into a wall- or desk-mounted control 
 
 It is macOS-first. On other systems the UI still runs, but the macOS-specific features (Bluetooth, Calendar, Shortcuts) show a clear "unavailable" state.
 
+## Preview
+
+Shown at Fire HD 8 landscape size (1280×800). _Sample data — see [Screenshots](#screenshots) to regenerate._
+
+| Home dashboard | Mac stats |
+|----------------|-----------|
+| ![Home dashboard](docs/screenshots/home-dashboard.png) | ![Mac stats](docs/screenshots/mac-stats.png) |
+
+| Calendar & tasks | Remote controls |
+|------------------|-----------------|
+| ![Calendar and tasks](docs/screenshots/calendar-tasks.png) | ![Remote controls](docs/screenshots/remote-controls.png) |
+
 ## Why I built this
 
 I got a Fire HD 8 for free. Fire OS is too locked down and the hardware too slow to make it a good tablet, but it has a fine screen and Wi-Fi, which is all you need for a screen that sits on a stand and does one job. I wanted a touchscreen control panel for my Mac without buying dedicated hardware, so I built a small web app the tablet could display full-screen and used it to drive Focus modes, app launches, and a calendar glance. FireFrame is that project, cleaned up.
@@ -224,10 +236,15 @@ frontend/
   index.html          single-page UI
   app.js              all client logic
   style.css           dark theme
+  demo.js             demo/screenshot mode (inert without ?demo=true)
   manifest.json       PWA manifest
 scripts/
   start.sh / stop.sh  launch and stop helpers
   launchd/            optional login-agent example
+tools/
+  screenshots/        Playwright README-screenshot generator
+docs/
+  screenshots/        generated preview images
 fireframe.command     double-click launcher for macOS
 ```
 
@@ -275,6 +292,26 @@ The suite covers auth, the session-cookie signing, and action dispatch/input san
 ./.venv/bin/python -m pip install -r requirements-dev.txt
 ./.venv/bin/python -m pytest
 ```
+
+## Screenshots
+
+The README preview images are generated from the **real** UI (not mockups) with a
+demo mode that fills the dashboard with believable sample data. To regenerate them:
+
+```bash
+cd tools/screenshots
+npm run setup     # one-time: installs Playwright + Chromium
+npm run shots     # boots a temporary server and writes docs/screenshots/*.png
+```
+
+This captures `home-dashboard`, `mac-stats`, `calendar-tasks`, and `remote-controls`
+at 1280×800 (Fire HD 8 landscape). Use `npm run shots:hires` for 1920×1200 exports.
+
+Demo mode also works by hand for a manual capture — open
+`http://<mac>:8765/?demo=true&screenshot=true&tab=home` in desktop Chrome at a
+1280×800 window (swap `tab=` for `mac-stats`, `calendar`, or `buttons`). It is
+inert without the `?demo=true` flag, so normal tablet use is unaffected. See
+[tools/screenshots/README.md](tools/screenshots/README.md) for details.
 
 ## Troubleshooting
 

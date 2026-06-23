@@ -385,9 +385,8 @@ html, body {
 /* ===================================================
    HOME TAB: at-a-glance card grid
    =================================================== */
-/* Four-column grid tuned for the Fire HD 8 landscape screen. Spans are chosen so
-   every row fills: the two tall cards (Mac, Tasks) pair on one row, the short
-   utility cards share the next, and the status strip runs full width. */
+/* Four-column grid for the Fire HD 8. Spans pair the tall cards (Mac, Tasks)
+   on one row and group the short cards on the next, so every row fills. */
 .home-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -1418,8 +1417,10 @@ html, body {
 .ms-card { display: flex; flex-direction: column; }
 /* Overview + processes get more room when the grid is wide enough. */
 .ms-wide { grid-column: span 2; }
+.ms-netspeed { grid-column: span 2; }   /* wider so the down/up tiles fill the row */
+.ms-proc { grid-column: 1 / -1; }        /* processes span the full width */
 @media (max-width: 560px) {
-    .ms-wide { grid-column: auto; }
+    .ms-wide, .ms-netspeed { grid-column: auto; }
 }
 
 .ms-card-top {
@@ -1491,8 +1492,8 @@ html, body {
 .ms-speed-arrow.up { color: var(--primary-lt); }
 .ms-speed-val { font-size: 0.98rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-/* Top processes (two compact columns) */
-.ms-proc-cols { display: flex; gap: 1.1rem; }
+/* Top processes (two columns, each row a name + usage bar + percent) */
+.ms-proc-cols { display: flex; gap: 1.6rem; }
 .ms-proc-col { flex: 1; min-width: 0; }
 .ms-proc-h {
     font-size: 0.66rem;
@@ -1504,13 +1505,16 @@ html, body {
 .ms-proc-list { display: flex; flex-direction: column; }
 .ms-proc-row {
     display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.7rem;
     font-size: 0.82rem;
-    padding: 0.22rem 0;
+    padding: 0.28rem 0;
 }
-.ms-proc-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ms-proc-row .vl { color: var(--muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.ms-proc-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; max-width: 46%; }
+.ms-proc-bar { flex: 1; height: 6px; min-width: 40px; background: var(--surface2); border-radius: var(--pill); overflow: hidden; }
+.ms-proc-bar-fill { height: 100%; background: var(--primary); border-radius: var(--pill); }
+.ms-proc-bar-fill.mem { background: var(--green); }
+.ms-proc-row .vl { color: var(--muted); font-variant-numeric: tabular-nums; flex-shrink: 0; width: 3.4em; text-align: right; }
 .ms-proc-empty { font-size: 0.82rem; color: var(--muted-2); padding: 0.22rem 0; }
 
 /* ===================================================

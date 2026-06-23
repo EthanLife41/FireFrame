@@ -1434,10 +1434,20 @@ function renderProcList(id, rows, key) {
     if (!wrap) return;
     wrap.innerHTML = '';
     if (!rows.length) { wrap.appendChild(el('div', 'ms-proc-empty', '—')); return; }
+    const valOf = (r) => key === 'cpu' ? r.cpu : r.mem;
+    // Scale bars to the busiest process in the list so the column reads clearly
+    // even when every value is a small share of the whole CPU/RAM.
+    const max = Math.max(1, ...rows.map(valOf));
     rows.forEach(r => {
+        const v = valOf(r);
         const row = el('div', 'ms-proc-row');
         row.appendChild(el('span', 'nm', r.name));
-        row.appendChild(el('span', 'vl', (key === 'cpu' ? r.cpu : r.mem) + '%'));
+        const bar = el('div', 'ms-proc-bar');
+        const fill = el('div', 'ms-proc-bar-fill' + (key === 'mem' ? ' mem' : ''));
+        fill.style.width = Math.max(4, Math.round(v / max * 100)) + '%';
+        bar.appendChild(fill);
+        row.appendChild(bar);
+        row.appendChild(el('span', 'vl', v + '%'));
         wrap.appendChild(row);
     });
 }
@@ -2064,7 +2074,7 @@ function toggleViewAllTasks(show) {
     if (btn) btn.classList.toggle('hidden', !show);
 }
 
-// Jump to the Calendar tab's Tasks sub-view to see and manage every task.
+// Open the Calendar tab's Tasks sub-view to manage all tasks.
 function viewAllTasks() {
     switchTab('calendar');
     setCalSection('tasks');

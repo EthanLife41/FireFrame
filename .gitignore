@@ -1,6 +1,9 @@
 .env
 backend/config.py
 
+# Node (screenshot tooling)
+node_modules/
+
 # Python
 .venv/
 venv/
