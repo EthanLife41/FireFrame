@@ -36,3 +36,5 @@ same name; backend/config_loader.py stays the source of truth for the rest.
 # TASK_DEFAULT_CALENDAR = ""
 # TASK_REGULAR_DURATION_MINUTES = 60
 # TASK_IMPORTANT_DURATION_MINUTES = 240
+# Where "Add Task" collects input: "dashboard" or "mac_prompt".
+# TASK_INPUT_LOCATION = "dashboard"

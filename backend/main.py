@@ -119,6 +119,18 @@ class TaskCreateRequest(BaseModel):
     notes: str = ""
     calendar_id: str = ""
 
+class TaskConfigRequest(BaseModel):
+    input_location: str
+
+class TaskDeleteRequest(BaseModel):
+    event_id: str
+
+class TaskRescheduleRequest(BaseModel):
+    event_id: str
+    date: str
+    time: str
+    importance: str = "regular"
+
 # --- Routes ---
 
 @app.get("/")
@@ -245,12 +257,28 @@ async def tasks_calendars(user: bool = Depends(get_current_user)):
     return tasks.get_calendars()
 
 @app.get("/api/tasks/upcoming")
-async def tasks_upcoming(user: bool = Depends(get_current_user)):
-    return tasks.get_upcoming()
+async def tasks_upcoming(limit: int = 3, user: bool = Depends(get_current_user)):
+    return tasks.get_upcoming(limit)
 
 @app.post("/api/tasks/create")
 async def tasks_create(req: TaskCreateRequest, user: bool = Depends(get_current_user)):
     return tasks.create_task(req.title, req.date, req.time, req.importance, req.notes, req.calendar_id)
+
+@app.post("/api/tasks/config")
+async def tasks_set_config(req: TaskConfigRequest, user: bool = Depends(get_current_user)):
+    return tasks.set_input_location(req.input_location)
+
+@app.post("/api/tasks/delete")
+async def tasks_delete(req: TaskDeleteRequest, user: bool = Depends(get_current_user)):
+    return tasks.delete_task(req.event_id)
+
+@app.post("/api/tasks/reschedule")
+async def tasks_reschedule(req: TaskRescheduleRequest, user: bool = Depends(get_current_user)):
+    return tasks.reschedule_task(req.event_id, req.date, req.time, req.importance)
+
+@app.post("/api/tasks/prompt")
+async def tasks_prompt(user: bool = Depends(get_current_user)):
+    return tasks.prompt_on_mac()
 
 @app.post("/api/photos/open")
 async def photos_open(user: bool = Depends(get_current_user)):

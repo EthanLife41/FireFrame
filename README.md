@@ -109,9 +109,16 @@ A FireFrame *task* is a scheduled calendar block, not an Apple Reminder. You giv
 - **Regular** sets a 1-hour block.
 - **Important** sets a 4-hour block, for work that needs real time.
 
-Both lengths are configurable (`TASK_REGULAR_DURATION_MINUTES`, `TASK_IMPORTANT_DURATION_MINUTES`). Create a task from **Add** on the Home Tasks card or **+ Task** in the Calendar toolbar; the Home card lists the next few upcoming blocks, and the Calendar view refreshes to show a new one after you save.
+Both lengths are configurable (`TASK_REGULAR_DURATION_MINUTES`, `TASK_IMPORTANT_DURATION_MINUTES`). Add a task from the Home **Tasks** card or the Calendar tab's **Tasks** sub-view; both lists show upcoming blocks with an importance badge, and the Calendar grid refreshes to show a new one after you save.
+
+**Manage a task.** Tap any task (on Home or in the Calendar Tasks sub-view) to open its details, then **Reschedule** (pick a new date, time, and importance — the block resizes to match) or **Delete** (with a confirm step). FireFrame only edits or deletes events in your task calendars, so a tap can't touch an unrelated event.
 
 **Where tasks go.** FireFrame files a task into the first calendar whose name contains "task" (case-insensitive, so `Tasks`, `Task`, `My Tasks`, or a `Google Tasks` calendar synced into Calendar.app all match). If none exists, it uses your default Calendar.app calendar. When you have more than one writable calendar a picker appears, with the suggested one pre-selected. To force a target regardless, set `TASK_DEFAULT_CALENDAR` to its exact name. To get a dedicated calendar, in Calendar.app choose File > New Calendar and name it `Tasks` (create it under a Google account there if you want it on Google Calendar).
+
+**Where you type.** Typing on a tablet is slow, so `Add Task` can collect input two ways, switchable from **Settings** (or `TASK_INPUT_LOCATION` in `.env`):
+
+- **Tablet** (`dashboard`, default): opens the on-screen form on the tablet.
+- **Mac prompt** (`mac_prompt`): opens a short sequence of native dialogs on the Mac (title, importance, start time, optional notes) so you type with a real keyboard. It runs in the background, so the server never blocks, and a notification confirms when the task is added. If macOS or `osascript` can't support it, FireFrame falls back to the tablet form with a clear message.
 
 ## Bluetooth
 

@@ -140,8 +140,8 @@
 
                 <div class="card home-card home-tasks">
                     <div class="card-head">
-                        <div class="card-label">Tasks</div>
-                        <button class="btn small-btn ghost-btn" id="home-add-task">Add</button>
+                        <div class="card-label">Tasks <span id="home-task-mode" class="task-mode-tag"></span></div>
+                        <button class="btn small-btn ghost-btn" id="home-add-task">Add Task</button>
                     </div>
                     <div id="home-tasks-list" class="home-tasks-list"></div>
                 </div>
@@ -152,18 +152,15 @@
                 </div>
 
                 <div class="card home-card home-actions">
-                    <div class="card-label">Quick Actions</div>
+                    <div class="card-head">
+                        <div class="card-label">Quick Actions</div>
+                        <button class="btn small-btn ghost-btn" onclick="switchTab('buttons')">More</button>
+                    </div>
                     <div class="home-mini-grid">
-                        <button class="mini-btn" data-action="dnd">🔕<span>DND</span></button>
                         <button class="mini-btn" data-action="locked_in">🎯<span>Locked In</span></button>
                         <button class="mini-btn" data-action="presentation">📽️<span>Present</span></button>
-                        <button class="mini-btn" data-action="break_mode">☕<span>Break</span></button>
                         <button class="mini-btn" data-action="mute">🔇<span>Mute</span></button>
                         <button class="mini-btn mini-danger" data-action="sleep_mac" data-confirm="Put this Mac to sleep now?">💤<span>Sleep Mac</span></button>
-                        <button class="mini-btn" data-action="open_spotify">🎵<span>Spotify</span></button>
-                        <button class="mini-btn" data-action="gpt">🤖<span>GPT</span></button>
-                        <button class="mini-btn" data-action="quick_note">📝<span>Note</span></button>
-                        <button class="mini-btn" data-action="display_settings">🖥️<span>Display</span></button>
                     </div>
                 </div>
 
@@ -175,14 +172,8 @@
                     <div class="home-mini-grid">
                         <button class="mini-btn" data-action="open_spotify">🎵<span>Spotify</span></button>
                         <button class="mini-btn" data-action="gpt">🤖<span>ChatGPT</span></button>
-                        <button class="mini-btn" data-action="launch_chrome">🌐<span>Chrome</span></button>
-                        <button class="mini-btn" data-action="launch_vscode">🧩<span>VS Code</span></button>
-                        <button class="mini-btn" data-action="launch_terminal">⌨️<span>Terminal</span></button>
-                        <button class="mini-btn" data-action="launch_notes">🗒️<span>Notes</span></button>
-                        <button class="mini-btn" data-action="launch_finder">📁<span>Finder</span></button>
-                        <button class="mini-btn" data-action="bluetooth_settings">🔵<span>BT Settings</span></button>
+                        <button class="mini-btn" data-action="quick_note">📝<span>Quick Note</span></button>
                         <button class="mini-btn" data-action="display_settings">🖥️<span>Display</span></button>
-                        <button class="mini-btn" data-action="wallpapers">🖼️<span>Wallpaper</span></button>
                     </div>
                 </div>
 
@@ -277,25 +268,39 @@
 
         <!-- CALENDAR TAB: day/week schedule grid -->
         <div id="tab-calendar" class="tab-content cal-tab">
-            <div class="cal-toolbar">
-                <div class="cal-tb-group">
-                    <button class="btn small-btn" id="cal-today">Today</button>
-                    <button class="btn small-btn cal-nav" id="cal-prev" aria-label="Previous">‹</button>
-                    <button class="btn small-btn cal-nav" id="cal-next" aria-label="Next">›</button>
-                    <div id="cal-range" class="cal-range">—</div>
-                </div>
-                <div class="cal-tb-group">
-                    <div class="seg" role="group" aria-label="View">
-                        <button class="seg-btn" id="cal-view-day" data-view="day">Day</button>
-                        <button class="seg-btn active" id="cal-view-week" data-view="week">Week</button>
-                    </div>
-                    <button class="btn small-btn" id="cal-add-task">+ Task</button>
-                    <button class="btn small-btn" id="cal-refresh-btn" aria-label="Refresh calendar">⟳</button>
-                </div>
+            <div class="seg cal-section-seg" role="group" aria-label="Calendar section">
+                <button class="seg-btn active" id="calsec-calendar" data-calsec="calendar">Calendar</button>
+                <button class="seg-btn" id="calsec-tasks" data-calsec="tasks">Tasks</button>
             </div>
-            <div id="cal-sources" class="cal-sources hidden"></div>
-            <div id="cal-status" class="cal-state hidden">Loading calendar...</div>
-            <div id="cal-grid" class="cal-grid"></div>
+
+            <div id="cal-view-main">
+                <div class="cal-toolbar">
+                    <div class="cal-tb-group">
+                        <button class="btn small-btn" id="cal-today">Today</button>
+                        <button class="btn small-btn cal-nav" id="cal-prev" aria-label="Previous">‹</button>
+                        <button class="btn small-btn cal-nav" id="cal-next" aria-label="Next">›</button>
+                        <div id="cal-range" class="cal-range">—</div>
+                    </div>
+                    <div class="cal-tb-group">
+                        <div class="seg" role="group" aria-label="View">
+                            <button class="seg-btn" id="cal-view-day" data-view="day">Day</button>
+                            <button class="seg-btn active" id="cal-view-week" data-view="week">Week</button>
+                        </div>
+                        <button class="btn small-btn" id="cal-refresh-btn" aria-label="Refresh calendar">⟳</button>
+                    </div>
+                </div>
+                <div id="cal-sources" class="cal-sources hidden"></div>
+                <div id="cal-status" class="cal-state hidden">Loading calendar...</div>
+                <div id="cal-grid" class="cal-grid"></div>
+            </div>
+
+            <div id="cal-view-tasks" class="cal-view-tasks hidden">
+                <div class="cal-tasks-head">
+                    <div class="card-label">Upcoming Tasks</div>
+                    <button class="btn small-btn primary-btn" id="caltask-add">Add Task</button>
+                </div>
+                <div id="cal-tasks-list" class="cal-tasks-list"></div>
+            </div>
         </div>
 
         <!-- PHOTOS TAB -->
@@ -465,6 +470,21 @@
                     <p id="set-cfg-hint" class="muted-text setting-hint hidden"></p>
                 </div>
 
+                <!-- Tasks -->
+                <div class="card">
+                    <div class="card-label">Tasks</div>
+                    <div class="setting-row">
+                        <span>Add Task input</span>
+                        <div class="seg" role="group" aria-label="Task input location">
+                            <button class="seg-btn" data-task-input="dashboard">Tablet</button>
+                            <button class="seg-btn" data-task-input="mac_prompt">Mac prompt</button>
+                        </div>
+                    </div>
+                    <div class="setting-row"><span>Task calendar</span><span id="set-task-cal" class="st-val">—</span></div>
+                    <div class="setting-row"><span>Regular / Important</span><span id="set-task-dur" class="st-val">—</span></div>
+                    <p id="set-task-hint" class="muted-text setting-hint hidden"></p>
+                </div>
+
                 <!-- Maintenance -->
                 <div class="card">
                     <div class="card-label">Maintenance</div>
@@ -593,7 +613,7 @@
 <!-- Task creation modal (UI says "task"; creates a calendar block) -->
 <div id="task-modal" class="modal hidden">
     <div class="modal-box card task-box">
-        <h2>New Task</h2>
+        <h2 id="task-modal-title">New Task</h2>
         <div class="task-form">
             <label class="task-field">
                 <span class="task-label">Title</span>
@@ -621,7 +641,7 @@
                 <span class="task-label">Calendar</span>
                 <select id="task-calendar" class="task-input task-select"></select>
             </label>
-            <label class="task-field">
+            <label class="task-field" id="task-notes-field">
                 <span class="task-label">Notes <span class="task-optional">(optional)</span></span>
                 <textarea id="task-notes" class="task-input task-textarea" maxlength="2000" rows="2"></textarea>
             </label>
@@ -631,6 +651,22 @@
             <button class="btn" id="task-cancel-btn">Cancel</button>
             <button class="btn primary-btn" id="task-save-btn">Add Task</button>
         </div>
+    </div>
+</div>
+
+<!-- Task details (tap a task): reschedule or delete -->
+<div id="task-detail-modal" class="modal hidden">
+    <div class="modal-box card">
+        <h2 id="td-title">Task</h2>
+        <div class="td-rows">
+            <div class="td-row"><span class="td-label">When</span><span id="td-when">—</span></div>
+            <div class="td-row"><span class="td-label">Importance</span><span id="td-importance" class="imp-badge">—</span></div>
+        </div>
+        <div class="modal-row">
+            <button class="btn" id="td-reschedule">Reschedule</button>
+            <button class="btn danger-btn" id="td-delete">Delete</button>
+        </div>
+        <button class="btn small-btn" id="td-close">Close</button>
     </div>
 </div>
 

@@ -91,3 +91,57 @@ def test_create_task_sizes_block_by_importance(monkeypatch):
     assert captured["calendar_id"] == "cal-1"
     # Important = 240 minutes -> a 4-hour block (14:00 to 18:00).
     assert (captured["end"] - captured["start"]).total_seconds() == 240 * 60
+
+
+def test_set_input_location(monkeypatch):
+    monkeypatch.setattr(tasks, "_input_location", "dashboard")
+    assert tasks.set_input_location("dashboard")["success"] is True
+    assert tasks.set_input_location("bogus")["error"] == "invalid_location"
+    monkeypatch.setattr(tasks, "_is_macos", lambda: False)
+    assert tasks.set_input_location("mac_prompt")["error"] == "not_macos"
+
+
+def test_task_calendar_names(monkeypatch):
+    monkeypatch.setattr(tasks, "TASK_DEFAULT_CALENDAR", "")
+    monkeypatch.setattr(tasks, "get_calendars", lambda: {
+        "available": True, "suggested_id": "a",
+        "calendars": [{"id": "a", "name": "Personal"},
+                      {"id": "b", "name": "My Tasks"},
+                      {"id": "c", "name": "Work"}],
+    })
+    names = tasks._task_calendar_names()
+    assert "personal" in names   # the suggested calendar
+    assert "my tasks" in names   # task-like name
+    assert "work" not in names   # neither suggested nor task-like
+
+
+def test_delete_task_requires_id(monkeypatch):
+    _force_available(monkeypatch)
+    assert tasks.delete_task("")["error"] == "invalid_id"
+
+
+def test_delete_task_calls_service(monkeypatch):
+    _force_available(monkeypatch)
+    monkeypatch.setattr(tasks, "_task_calendar_names", lambda: {"tasks"})
+    called = {}
+    monkeypatch.setattr(tasks.calendar_service, "delete_event",
+                        lambda event_id, allowed: called.update(id=event_id, allowed=allowed) or True)
+    assert tasks.delete_task("EVT")["success"] is True
+    assert called["id"] == "EVT" and called["allowed"] == {"tasks"}
+
+
+def test_reschedule_sizes_block_by_importance(monkeypatch):
+    _force_available(monkeypatch)
+    monkeypatch.setattr(tasks, "_task_calendar_names", lambda: {"tasks"})
+    captured = {}
+
+    def fake_reschedule(event_id, start, end, allowed):
+        captured.update(event_id=event_id, start=start, end=end)
+        return True
+
+    monkeypatch.setattr(tasks.calendar_service, "reschedule_event", fake_reschedule)
+    res = tasks.reschedule_task("EVT", "2026-06-23", "09:00", "important")
+    assert res["success"] is True
+    assert captured["event_id"] == "EVT"
+    # Important = 240 minutes -> a 4-hour block (09:00 to 13:00).
+    assert (captured["end"] - captured["start"]).total_seconds() == 240 * 60

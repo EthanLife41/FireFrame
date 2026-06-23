@@ -12,8 +12,12 @@ calendar the user picks. Reading upcoming tasks reuses the cached calendar
 service, so this adds no extra polling.
 """
 
+import json
 import platform
 import re
+import shutil
+import subprocess
+import threading
 import time
 from datetime import datetime, timedelta
 
@@ -22,13 +26,20 @@ from backend.config_loader import (
     TASK_DEFAULT_CALENDAR,
     TASK_REGULAR_DURATION_MINUTES,
     TASK_IMPORTANT_DURATION_MINUTES,
+    TASK_INPUT_LOCATION,
 )
 
 REGULAR = "regular"
 IMPORTANT = "important"
+VALID_INPUT_LOCATIONS = ("dashboard", "mac_prompt")
 
 _NO_EVENTKIT = ("Task creation needs the EventKit reader. Install it with: "
                 "pip install pyobjc-framework-EventKit")
+
+# Runtime override for where Add Task collects input. Starts from the env
+# default; Settings can flip it for the running server (set TASK_INPUT_LOCATION
+# in .env for a persistent default).
+_input_location = TASK_INPUT_LOCATION if TASK_INPUT_LOCATION in VALID_INPUT_LOCATIONS else "dashboard"
 
 
 def _is_macos() -> bool:
@@ -87,14 +98,29 @@ def _parse_start(date_str: str, time_str: str):
 
 
 def get_config() -> dict:
-    """Durations and whether task creation is available on this machine."""
+    """Durations, the input-location setting, and whether tasks are available."""
     durations = _durations()
+    available = _is_macos() and calendar_service.is_eventkit_available()
     return {
-        "available": _is_macos() and calendar_service.is_eventkit_available(),
+        "available": available,
         "regular_minutes": durations[REGULAR],
         "important_minutes": durations[IMPORTANT],
         "default_calendar": (TASK_DEFAULT_CALENDAR or "").strip(),
+        "input_location": _input_location,
+        "mac_prompt_supported": available and shutil.which("osascript") is not None,
     }
+
+
+def set_input_location(value: str) -> dict:
+    """Flip where Add Task collects input for the running server."""
+    global _input_location
+    value = (value or "").strip().lower()
+    if value not in VALID_INPUT_LOCATIONS:
+        return _fail("invalid_location", "Input location must be dashboard or mac_prompt.")
+    if value == "mac_prompt" and not _is_macos():
+        return _fail("not_macos", "Mac prompt mode is available on macOS only.")
+    _input_location = value
+    return {"success": True, "input_location": _input_location}
 
 
 # The writable-calendar list changes rarely, so cache it briefly. This keeps a
@@ -148,6 +174,7 @@ def get_upcoming(limit: int = 3) -> dict:
     if not cal_info.get("available"):
         return {"available": False, "tasks": [], "message": cal_info.get("message")}
 
+    limit = max(0, min(int(limit), 50))
     target = next((c for c in cal_info["calendars"]
                    if c["id"] == cal_info.get("suggested_id")), None)
     target_name = target["name"] if target else None
@@ -161,7 +188,7 @@ def get_upcoming(limit: int = 3) -> dict:
         "available": True,
         "calendar": target_name,
         "source": data.get("source"),
-        "tasks": events[:max(0, limit)],
+        "tasks": events[:limit],
     }
 
 
@@ -212,3 +239,185 @@ def create_task(title: str, date_str: str, time_str: str,
         "start": start.isoformat(),
         "end": end.isoformat(),
     }
+
+
+def _task_calendar_names() -> set:
+    """Lowercased names of calendars FireFrame treats as task calendars — the
+    allowlist for delete/reschedule, so events in other calendars are untouched."""
+    names = set()
+    info = get_calendars()
+    if info.get("available"):
+        suggested_id = info.get("suggested_id")
+        for cal in info["calendars"]:
+            if _looks_like_task_calendar(cal["name"]) or cal["id"] == suggested_id:
+                names.add(cal["name"].strip().lower())
+    configured = (TASK_DEFAULT_CALENDAR or "").strip().lower()
+    if configured:
+        names.add(configured)
+    return names
+
+
+def delete_task(event_id: str) -> dict:
+    if not _is_macos():
+        return _fail("not_macos", "Tasks can only be managed on macOS.")
+    if not calendar_service.is_eventkit_available():
+        return _fail("no_eventkit", _NO_EVENTKIT)
+    event_id = (event_id or "").strip()
+    if not event_id:
+        return _fail("invalid_id", "Missing task id.")
+    names = _task_calendar_names()
+    if not names:
+        return _fail("unavailable", "Could not read your task calendars. Try again.")
+    try:
+        calendar_service.delete_event(event_id, names)
+    except PermissionError:
+        return _fail("permission", calendar_service.PERMISSION_HINT)
+    except calendar_service.CalendarWriteError as exc:
+        return _fail("delete_failed", str(exc))
+    except Exception:
+        return _fail("delete_failed", "Could not delete the task.")
+    return {"success": True, "message": "Task deleted."}
+
+
+def reschedule_task(event_id: str, date_str: str, time_str: str,
+                    importance: str = REGULAR) -> dict:
+    if not _is_macos():
+        return _fail("not_macos", "Tasks can only be managed on macOS.")
+    if not calendar_service.is_eventkit_available():
+        return _fail("no_eventkit", _NO_EVENTKIT)
+    event_id = (event_id or "").strip()
+    if not event_id:
+        return _fail("invalid_id", "Missing task id.")
+    importance = (importance or REGULAR).strip().lower()
+    if importance not in (REGULAR, IMPORTANT):
+        return _fail("invalid_importance", "Importance must be Regular or Important.")
+    start = _parse_start(date_str, time_str)
+    if start is None:
+        return _fail("invalid_datetime", "Enter a valid date and start time.")
+    minutes = _durations()[importance]
+    end = start + timedelta(minutes=minutes)
+    names = _task_calendar_names()
+    if not names:
+        return _fail("unavailable", "Could not read your task calendars. Try again.")
+    try:
+        calendar_service.reschedule_event(event_id, start, end, names)
+    except PermissionError:
+        return _fail("permission", calendar_service.PERMISSION_HINT)
+    except calendar_service.CalendarWriteError as exc:
+        return _fail("reschedule_failed", str(exc))
+    except Exception:
+        return _fail("reschedule_failed", "Could not reschedule the task.")
+    return {"success": True, "message": f"Rescheduled ({minutes} min).",
+            "start": start.isoformat(), "end": end.isoformat(), "importance": importance}
+
+
+# --- Mac prompt mode: collect a task via native dialogs on the Mac ----------
+# The only value placed into the script is a server-generated timestamp (the
+# prefilled start time). The user's answers come back over stdout and are
+# validated before reaching EventKit; no user input is interpolated into the
+# script or a shell.
+
+_MAC_PROMPT_JXA = """
+(() => {
+  const app = Application.currentApplication();
+  app.includeStandardAdditions = true;
+  let title;
+  try {
+    title = app.displayDialog("New task — title:", {
+      defaultAnswer: "", buttons: ["Cancel", "Next"], defaultButton: "Next"
+    }).textReturned;
+  } catch (e) { return "CANCEL"; }
+  title = (title || "").trim();
+  if (!title) return "CANCEL";
+  let importance;
+  try {
+    const r = app.chooseFromList(["Regular", "Important"], {
+      defaultItems: ["Regular"], withPrompt: "Importance:"
+    });
+    if (r === false) return "CANCEL";
+    importance = r[0];
+  } catch (e) { return "CANCEL"; }
+  let when;
+  try {
+    when = app.displayDialog("Start time (YYYY-MM-DD HH:MM):", {
+      defaultAnswer: "__PREFILL__", buttons: ["Cancel", "Next"], defaultButton: "Next"
+    }).textReturned;
+  } catch (e) { return "CANCEL"; }
+  let notes = "";
+  try {
+    notes = app.displayDialog("Notes (optional):", {
+      defaultAnswer: "", buttons: ["Skip", "Add"], defaultButton: "Add"
+    }).textReturned;
+  } catch (e) { notes = ""; }
+  return JSON.stringify({ title: title, importance: importance, when: when, notes: notes });
+})()
+"""
+
+_NOTIFY_RE = re.compile(r"[^A-Za-z0-9 .:,_-]+")
+
+
+def prompt_on_mac() -> dict:
+    """Start the native Mac dialog flow in a background thread, so the request
+    returns immediately and the server never blocks while the dialogs are open."""
+    if not _is_macos():
+        return _fail("not_macos", "Mac prompt is available on macOS only.")
+    if not calendar_service.is_eventkit_available():
+        return _fail("no_eventkit", _NO_EVENTKIT)
+    if shutil.which("osascript") is None:
+        return _fail("no_osascript", "osascript is not available on this Mac.")
+    threading.Thread(target=_run_mac_prompt, daemon=True).start()
+    return {"success": True, "message": "Finish adding the task on your Mac."}
+
+
+def _run_mac_prompt() -> None:
+    try:
+        data = _ask_mac_for_task()
+    except Exception:
+        return
+    if data is None:
+        return   # cancelled, or a dialog already reported the problem
+    try:
+        calendar_service.create_event(title=data["title"], start=data["start"],
+                                      end=data["end"], notes=data["notes"], calendar_id="")
+        _notify_mac("Task added.")
+    except Exception:
+        _notify_mac("Could not add the task. Check Calendar access.")
+
+
+def _ask_mac_for_task():
+    prefill = datetime.now().replace(second=0, microsecond=0).strftime("%Y-%m-%d %H:%M")
+    script = _MAC_PROMPT_JXA.replace("__PREFILL__", prefill)
+    proc = subprocess.run(["osascript", "-l", "JavaScript", "-e", script],
+                          capture_output=True, text=True, timeout=180)
+    out = (proc.stdout or "").strip()
+    if proc.returncode != 0 or not out or out == "CANCEL":
+        return None
+    try:
+        raw = json.loads(out)
+    except ValueError:
+        return None
+    title = (raw.get("title") or "").strip()[:200]
+    if not title:
+        return None
+    importance = (raw.get("importance") or REGULAR).strip().lower()
+    if importance not in (REGULAR, IMPORTANT):
+        importance = REGULAR
+    try:
+        start = datetime.strptime((raw.get("when") or "").strip(), "%Y-%m-%d %H:%M")
+    except ValueError:
+        _notify_mac("Task not added: couldn't read the date and time.")
+        return None
+    minutes = _durations()[importance]
+    return {"title": title, "start": start, "end": start + timedelta(minutes=minutes),
+            "notes": (raw.get("notes") or "").strip()[:2000]}
+
+
+def _notify_mac(message: str) -> None:
+    msg = _NOTIFY_RE.sub("", message)[:120]
+    script = ("on run argv\n"
+              '  display notification (item 1 of argv) with title "FireFrame"\n'
+              "end run")
+    try:
+        subprocess.run(["osascript", "-e", script, msg], capture_output=True, timeout=6)
+    except Exception:
+        pass

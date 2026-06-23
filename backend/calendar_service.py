@@ -119,6 +119,9 @@ def _shape(events: list) -> list:
                 # Real Apple Calendar colour when available (EventKit); the client
                 # falls back to a stable name-derived colour for other sources.
                 "calendar_color": ev.get("calendar_color") or None,
+                # EventKit per-event id, present only on the Apple source; lets the
+                # client delete/reschedule. None for ics/demo (not editable).
+                "event_id": ev.get("event_id") or None,
                 "_start_dt": start,
                 "_end_dt": end,
             }
@@ -393,6 +396,9 @@ def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
             cal = ev.calendar()
             out.append({
                 "uid": ev.calendarItemIdentifier(),
+                # eventIdentifier is the per-event id used to edit/delete it;
+                # calendarItemIdentifier (uid) is shared across recurrences.
+                "event_id": ev.eventIdentifier(),
                 "title": ev.title(),
                 "start": datetime.fromtimestamp(sd.timeIntervalSince1970()).isoformat() if sd else None,
                 "end": datetime.fromtimestamp(ed.timeIntervalSince1970()).isoformat() if ed else None,
@@ -458,14 +464,59 @@ def create_event(title: str, start: datetime, end: datetime,
 
     ok, err = store.saveEvent_span_error_(event, 0, None)   # 0 = EKSpanThisEvent
     if not ok:
-        detail = ""
-        try:
-            if err is not None:
-                detail = str(err.localizedDescription())
-        except Exception:
-            detail = ""
-        raise CalendarWriteError(detail or "Apple Calendar rejected the event.")
+        raise CalendarWriteError(_error_detail(err) or "Apple Calendar rejected the event.")
     return event.eventIdentifier()
+
+
+def _error_detail(err) -> str:
+    try:
+        return str(err.localizedDescription()) if err is not None else ""
+    except Exception:
+        return ""
+
+
+def _ensure_manageable(event, allowed_calendar_names) -> None:
+    """Guard write/delete: the event must live in a writable calendar whose name
+    is one FireFrame files tasks into, so a stray event elsewhere is never touched."""
+    cal = event.calendar()
+    if cal is None or not cal.allowsContentModifications():
+        raise CalendarWriteError("That calendar is read-only.")
+    name = (cal.title() or "").strip().lower()
+    if name not in (allowed_calendar_names or set()):
+        raise CalendarWriteError("FireFrame only manages tasks in your task calendar.")
+
+
+def delete_event(event_id: str, allowed_calendar_names) -> bool:
+    """Delete an event by identifier, only within the allowed task calendars.
+    Raises PermissionError or CalendarWriteError."""
+    store = _authorized_store()
+    event = store.eventWithIdentifier_(event_id) if event_id else None
+    if event is None:
+        raise CalendarWriteError("That task changed or was removed. Refresh and try again.")
+    _ensure_manageable(event, allowed_calendar_names)
+    ok, err = store.removeEvent_span_error_(event, 0, None)   # 0 = EKSpanThisEvent
+    if not ok:
+        raise CalendarWriteError(_error_detail(err) or "Could not delete the task.")
+    return True
+
+
+def reschedule_event(event_id: str, start: datetime, end: datetime,
+                    allowed_calendar_names) -> bool:
+    """Move an event to a new start/end, only within the allowed task calendars.
+    Raises PermissionError or CalendarWriteError."""
+    from Foundation import NSDate
+
+    store = _authorized_store()
+    event = store.eventWithIdentifier_(event_id) if event_id else None
+    if event is None:
+        raise CalendarWriteError("That task changed or was removed. Refresh and try again.")
+    _ensure_manageable(event, allowed_calendar_names)
+    event.setStartDate_(NSDate.dateWithTimeIntervalSince1970_(start.timestamp()))
+    event.setEndDate_(NSDate.dateWithTimeIntervalSince1970_(end.timestamp()))
+    ok, err = store.saveEvent_span_error_(event, 0, None)
+    if not ok:
+        raise CalendarWriteError(_error_detail(err) or "Could not reschedule the task.")
+    return True
 
 
 def _apple_fetch(start_dt: datetime, end_dt: datetime) -> list:

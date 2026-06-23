@@ -929,7 +929,6 @@ html, body {
    TASKS
    =================================================== */
 .home-tasks-list { display: flex; flex-direction: column; gap: 0.4rem; }
-.home-task { display: flex; align-items: baseline; gap: 0.5rem; }
 .home-task-when {
     flex-shrink: 0;
     min-width: 4.6rem;
@@ -944,6 +943,61 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+.home-tasks { grid-column: span 2; }
+.task-mode-tag {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.05rem 0.4rem;
+    vertical-align: middle;
+}
+
+/* A tappable task row (Home card + Calendar Tasks sub-view) */
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 44px;
+    padding: 0.5rem 0.6rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+.task-item.task-item-static { cursor: default; }
+.task-item-main { flex: 1; min-width: 0; }
+.task-item-time { font-size: 0.72rem; color: var(--muted); }
+
+.imp-badge {
+    flex-shrink: 0;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+}
+.imp-regular { color: var(--muted); border-color: var(--border); }
+.imp-important {
+    color: #ffcf8f;
+    border-color: rgba(255, 159, 67, 0.5);
+    background: rgba(255, 159, 67, 0.12);
+}
+
+/* Calendar tab: Calendar | Tasks sub-view */
+.cal-section-seg { width: 100%; margin-bottom: 0.6rem; }
+.cal-section-seg .seg-btn { flex: 1; }
+#cal-view-main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.cal-view-tasks { display: flex; flex-direction: column; gap: 0.6rem; }
+.cal-tasks-head { display: flex; justify-content: space-between; align-items: center; }
+.cal-tasks-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* Task details modal */
+.td-rows { display: flex; flex-direction: column; gap: 0.5rem; }
+.td-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+.td-label { font-size: 0.8rem; color: var(--muted); }
 
 .task-box { max-width: 380px; text-align: left; gap: 0.9rem; }
 .task-box h2 { text-align: center; }

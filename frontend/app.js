@@ -175,6 +175,7 @@ function showMainApp() {
     fillHomeStatus();
     fetchWeather();
     loadHomeTasks();
+    refreshTaskConfig();
     startStatsPolling();
 }
 
@@ -365,7 +366,7 @@ function switchTab(tabId) {
 
     if (tabId === 'photos') { startPhotoShow(); } else { stopPhotoShow(); }
     if (tabId === 'bluetooth') { loadBluetooth(); }
-    if (tabId === 'calendar' && !calLoaded) { loadCalendarView(); }
+    if (tabId === 'calendar') { if (calSection === 'tasks') loadCalTasks(); else if (!calLoaded) loadCalendarView(); }
     if (tabId === 'home') { loadHomeNextEvent(); loadHomeTasks(); }
     if (tabId === 'settings') { loadSettings(); }
     // Mac Stats polls only while its tab is open, to stay cheap in the background.
@@ -650,6 +651,8 @@ function renderSettings(h) {
     const todo = [];
     if (cfg.password_is_default) todo.push('DASHBOARD_PASSWORD');
     setHint('set-cfg-hint', todo.length ? `Set in .env: ${todo.join(', ')}.` : '');
+
+    refreshTaskConfig().then(renderTaskSettings);
 }
 
 async function copyTabletUrl() {
@@ -688,7 +691,6 @@ function setupCalendar() {
     on('cal-refresh-btn', () => loadCalendarView(true));
     on('cal-view-day',    () => setCalView('day'));
     on('cal-view-week',   () => setCalView('week'));
-    on('cal-add-task',    openTaskModal);
 }
 
 function setCalView(v) {
@@ -1710,16 +1712,24 @@ function updateChip() {
 }
 
 // ============================================================
-// TASKS  (create a scheduled calendar block from the tablet)
-// The UI says "task"; each one becomes a real Apple Calendar event sized by
-// importance (Regular vs Important). All reads/writes go through /api/tasks.
+// TASKS  (create / reschedule / delete calendar blocks from the tablet)
+// The UI says "task"; each is a real Apple Calendar event sized by importance
+// (Regular vs Important). All reads/writes go through /api/tasks. Input is
+// collected on the tablet, or via native Mac dialogs in "mac_prompt" mode.
 // ============================================================
 let taskImportance = 'regular';
-let taskConfig = null;          // { available, regular_minutes, important_minutes }
+let taskConfig = null;          // { available, regular_minutes, important_minutes, input_location, ... }
+let taskMode = 'create';        // 'create' | 'edit' (reschedule reuses the modal)
+let taskEditId = null;          // event id being rescheduled
+let detailTask = null;          // task shown in the details modal
+let calSection = 'calendar';    // Calendar tab sub-view: 'calendar' | 'tasks'
+// Durations used only before /api/tasks/config has loaded (mirrors the backend defaults).
+const TASK_FALLBACK = { regular_minutes: 60, important_minutes: 240 };
 
 function setupTasks() {
     const on = (id, fn) => { const node = document.getElementById(id); if (node) node.addEventListener('click', fn); };
-    on('home-add-task', openTaskModal);
+    on('home-add-task', addTask);
+    on('caltask-add', addTask);
     on('task-cancel-btn', closeTaskModal);
     on('task-save-btn', submitTask);
     document.querySelectorAll('#task-modal [data-importance]').forEach(btn => {
@@ -1727,23 +1737,102 @@ function setupTasks() {
     });
     const modal = document.getElementById('task-modal');
     if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeTaskModal(); });
+
+    // Task details modal
+    on('td-close', closeTaskDetail);
+    on('td-reschedule', () => { const t = detailTask; if (!t) return; closeTaskDetail(); openTaskModal(t); });
+    on('td-delete', () => {
+        const t = detailTask;
+        if (!t || !t.event_id) return;
+        closeTaskDetail();
+        showConfirm('Delete this task?', () => deleteTask(t.event_id));
+    });
+    const dm = document.getElementById('task-detail-modal');
+    if (dm) dm.addEventListener('click', e => { if (e.target === dm) closeTaskDetail(); });
+
+    // Calendar tab: Calendar | Tasks sub-view
+    document.querySelectorAll('[data-calsec]').forEach(btn => {
+        btn.addEventListener('click', () => setCalSection(btn.getAttribute('data-calsec')));
+    });
+
+    // Settings: task input-location toggle
+    document.querySelectorAll('[data-task-input]').forEach(btn => {
+        btn.addEventListener('click', () => setTaskInputLocation(btn.getAttribute('data-task-input')));
+    });
 }
 
-function openTaskModal() {
+// Decide where Add Task collects input, then open the tablet form or hand off
+// to the Mac. Falls back to the tablet form when Mac prompt isn't usable.
+async function addTask() {
+    let loc = 'dashboard';
+    try {
+        const res = await fetch('/api/tasks/config');
+        if (res.ok) {
+            taskConfig = await res.json();
+            loc = taskConfig.input_location || 'dashboard';
+            if (loc === 'mac_prompt' && !taskConfig.mac_prompt_supported) loc = 'dashboard';
+        }
+    } catch { /* default to the tablet form */ }
+
+    if (loc === 'mac_prompt') {
+        try {
+            const res = await fetch('/api/tasks/prompt', { method: 'POST' });
+            const d = await res.json();
+            if (res.ok && d.success) {
+                showToast(d.message || 'Continue on your Mac.');
+                // The dialogs stay open for an unknown time, so refresh a few
+                // times to surface the task once it's saved.
+                [10000, 30000, 60000].forEach(ms => setTimeout(refreshTaskViews, ms));
+                return;
+            }
+            showToast((d && d.message) || 'Mac prompt unavailable; using the tablet form.', true);
+        } catch {
+            showToast('Mac prompt failed; using the tablet form.', true);
+        }
+    }
+    openTaskModal();
+}
+
+// Open the modal for a new task, or to reschedule an existing one (editTask).
+function openTaskModal(editTask) {
     const modal = document.getElementById('task-modal');
     if (!modal) return;
     const title = document.getElementById('task-title');
     const date = document.getElementById('task-date');
     const time = document.getElementById('task-time');
     const notes = document.getElementById('task-notes');
-    if (title) title.value = '';
-    if (notes) notes.value = '';
-    if (date) date.value = ymd(new Date());
-    if (time) time.value = nextHalfHour();
-    setTaskImportance('regular');
+    const notesField = document.getElementById('task-notes-field');
+    const calField = document.getElementById('task-cal-field');
+    const header = document.getElementById('task-modal-title');
+    const save = document.getElementById('task-save-btn');
     setTaskError('');
+
+    if (editTask && editTask.event_id) {
+        taskMode = 'edit';
+        taskEditId = editTask.event_id;
+        const s = new Date(editTask.start);
+        if (title) { title.value = editTask.title || ''; title.disabled = true; }
+        if (date) date.value = ymd(s);
+        if (time) time.value = hhmm(s);
+        setTaskImportance(inferImportance(editTask));
+        if (notesField) notesField.classList.add('hidden');
+        if (calField) calField.classList.add('hidden');
+        if (header) header.textContent = 'Reschedule';
+        if (save) save.textContent = 'Save';
+    } else {
+        taskMode = 'create';
+        taskEditId = null;
+        if (title) { title.value = ''; title.disabled = false; }
+        if (notes) notes.value = '';
+        if (date) date.value = ymd(new Date());
+        if (time) time.value = nextHalfHour();
+        setTaskImportance('regular');
+        if (notesField) notesField.classList.remove('hidden');
+        if (header) header.textContent = 'New Task';
+        if (save) save.textContent = 'Add Task';
+    }
     modal.classList.remove('hidden');
-    if (title) setTimeout(() => title.focus(), 50);
+    if (taskMode === 'create' && title) setTimeout(() => title.focus(), 50);
     loadTaskMeta();
 }
 
@@ -1758,6 +1847,10 @@ function nextHalfHour() {
     d.setSeconds(0, 0);
     if (d.getMinutes() < 30) d.setMinutes(30);
     else { d.setMinutes(0); d.setHours(d.getHours() + 1); }
+    return hhmm(d);
+}
+
+function hhmm(d) {
     const pad = n => String(n).padStart(2, '0');
     return pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
@@ -1773,9 +1866,9 @@ function setTaskImportance(level) {
 function updateDurationHint() {
     const hint = document.getElementById('task-duration-hint');
     if (!hint) return;
-    let mins = taskImportance === 'important' ? 240 : 60;
-    if (taskConfig) mins = taskImportance === 'important' ? taskConfig.important_minutes : taskConfig.regular_minutes;
-    hint.textContent = 'Books a ' + describeDuration(mins) + ' block';
+    const cfg = taskConfig || TASK_FALLBACK;
+    const mins = taskImportance === 'important' ? cfg.important_minutes : cfg.regular_minutes;
+    hint.textContent = (taskMode === 'edit' ? 'Resizes to a ' : 'Books a ') + describeDuration(mins) + ' block';
 }
 
 function describeDuration(mins) {
@@ -1783,6 +1876,13 @@ function describeDuration(mins) {
     if (mins % 60 === 0) return (mins / 60) + 'h';
     if (mins > 60) return Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
     return mins + ' min';
+}
+
+// Tasks don't store an importance flag, so infer it from the block length.
+function inferImportance(ev) {
+    const mins = (new Date(ev.end) - new Date(ev.start)) / 60000;
+    const threshold = (taskConfig || TASK_FALLBACK).important_minutes;
+    return mins >= threshold ? 'important' : 'regular';
 }
 
 function setTaskError(msg) {
@@ -1795,9 +1895,11 @@ function setTaskError(msg) {
 // Load durations + the calendar picker once the modal is open.
 async function loadTaskMeta() {
     try {
-        taskConfig = await (await fetch('/api/tasks/config')).json();
+        const res = await fetch('/api/tasks/config');
+        if (res.ok) taskConfig = await res.json();
         updateDurationHint();
     } catch { /* keep the built-in defaults */ }
+    if (taskMode === 'edit') return;   // reschedule keeps the task's own calendar
     await loadTaskCalendars();
 }
 
@@ -1831,37 +1933,44 @@ async function loadTaskCalendars() {
 }
 
 async function submitTask() {
-    const title = (document.getElementById('task-title').value || '').trim();
     const date = document.getElementById('task-date').value;
     const time = document.getElementById('task-time').value;
-    const notes = (document.getElementById('task-notes').value || '').trim();
-    const field = document.getElementById('task-cal-field');
-    const select = document.getElementById('task-calendar');
-    const calendarId = (field && !field.classList.contains('hidden') && select) ? select.value : '';
-
-    if (!title) return setTaskError('Give the task a title.');
     if (!date) return setTaskError('Pick a date.');
     if (!time) return setTaskError('Pick a start time.');
     setTaskError('');
 
     const save = document.getElementById('task-save-btn');
     const label = save ? save.textContent : '';
-    if (save) { save.disabled = true; save.textContent = 'Adding...'; }
+    if (save) { save.disabled = true; save.textContent = taskMode === 'edit' ? 'Saving...' : 'Adding...'; }
     try {
-        const res = await fetch('/api/tasks/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, date, time, importance: taskImportance, notes, calendar_id: calendarId })
-        });
+        let res;
+        if (taskMode === 'edit') {
+            res = await fetch('/api/tasks/reschedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event_id: taskEditId, date, time, importance: taskImportance })
+            });
+        } else {
+            const title = (document.getElementById('task-title').value || '').trim();
+            if (!title) { setTaskError('Give the task a title.'); return; }
+            const notes = (document.getElementById('task-notes').value || '').trim();
+            const field = document.getElementById('task-cal-field');
+            const select = document.getElementById('task-calendar');
+            const calendarId = (field && !field.classList.contains('hidden') && select) ? select.value : '';
+            res = await fetch('/api/tasks/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, date, time, importance: taskImportance, notes, calendar_id: calendarId })
+            });
+        }
         const data = await res.json();
         if (!res.ok || !data.success) {
-            setTaskError((data && data.message) || 'Could not create the task.');
+            setTaskError((data && data.message) || 'Could not save the task.');
             return;
         }
         closeTaskModal();
-        showToast(data.message || 'Task added.');
-        loadHomeTasks();
-        if (calLoaded) loadCalendarView(true);   // surface the new block
+        showToast(data.message || (taskMode === 'edit' ? 'Task rescheduled.' : 'Task added.'));
+        refreshTaskViews();
     } catch {
         setTaskError('Connection error. Try again.');
     } finally {
@@ -1869,11 +1978,72 @@ async function submitTask() {
     }
 }
 
+async function deleteTask(eventId) {
+    try {
+        const res = await fetch('/api/tasks/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: eventId })
+        });
+        const d = await res.json();
+        const ok = res.ok && d.success;
+        showToast(ok ? (d.message || 'Task deleted.') : ((d && d.message) || 'Could not delete.'), !ok);
+        if (ok) refreshTaskViews();
+    } catch {
+        showToast('Connection error.', true);
+    }
+}
+
+// Refresh everywhere tasks are shown after a change.
+function refreshTaskViews() {
+    loadHomeTasks();
+    if (calSection === 'tasks') loadCalTasks();
+    if (calLoaded) loadCalendarView(true);
+}
+
+// --- task rows + details ---
+
+function taskRow(ev) {
+    const row = el('div', 'task-item');
+    row.appendChild(el('div', 'home-task-when', taskWhen(ev.start)));
+    const main = el('div', 'task-item-main');
+    main.appendChild(el('div', 'home-task-title', ev.title));
+    main.appendChild(el('div', 'task-item-time', fmtTime(ev.start) + ' – ' + fmtTime(ev.end)));
+    row.appendChild(main);
+    const imp = inferImportance(ev);
+    row.appendChild(el('span', 'imp-badge imp-' + imp, imp === 'important' ? 'Important' : 'Regular'));
+    if (ev.event_id) row.addEventListener('click', () => openTaskDetail(ev));
+    else row.classList.add('task-item-static');   // ics/demo: no edit id
+    return row;
+}
+
+function openTaskDetail(task) {
+    detailTask = task;
+    setText('td-title', task.title || 'Task');
+    setText('td-when', taskWhen(task.start) + ' · ' + fmtTime(task.start) + ' – ' + fmtTime(task.end));
+    const imp = inferImportance(task);
+    const badge = document.getElementById('td-importance');
+    if (badge) { badge.textContent = imp === 'important' ? 'Important' : 'Regular'; badge.className = 'imp-badge imp-' + imp; }
+    const editable = !!task.event_id;
+    ['td-reschedule', 'td-delete'].forEach(id => { const b = document.getElementById(id); if (b) b.disabled = !editable; });
+    const m = document.getElementById('task-detail-modal');
+    if (m) m.classList.remove('hidden');
+}
+
+function closeTaskDetail() {
+    detailTask = null;
+    const m = document.getElementById('task-detail-modal');
+    if (m) m.classList.add('hidden');
+}
+
+// --- Home tasks card ---
+
 async function loadHomeTasks() {
     const wrap = document.getElementById('home-tasks-list');
     if (!wrap) return;
+    if (!taskConfig) await refreshTaskConfig();   // so importance badges are right
     try {
-        renderHomeTasks(await (await fetch('/api/tasks/upcoming')).json());
+        renderHomeTasks(await (await fetch('/api/tasks/upcoming?limit=4')).json());
     } catch {
         wrap.innerHTML = '';
         wrap.appendChild(el('div', 'home-empty', 'Could not load tasks.'));
@@ -1886,22 +2056,110 @@ function renderHomeTasks(d) {
     wrap.innerHTML = '';
     const items = (d && d.tasks) || [];
     if (!d || !d.available || !items.length) {
-        wrap.appendChild(el('div', 'home-empty', 'No upcoming tasks. Tap Add to block time.'));
+        wrap.appendChild(el('div', 'home-empty', 'No upcoming tasks. Tap Add Task to block time.'));
         return;
     }
-    items.forEach(ev => {
-        const row = el('div', 'home-task');
-        row.appendChild(el('div', 'home-task-when', taskWhen(ev.start)));
-        row.appendChild(el('div', 'home-task-title', ev.title));
-        wrap.appendChild(row);
-    });
+    items.forEach(ev => wrap.appendChild(taskRow(ev)));
 }
 
 function taskWhen(iso) {
     const d = new Date(iso);
     const sameDay = d.toDateString() === new Date().toDateString();
-    const day = sameDay ? 'Today' : d.toLocaleDateString([], { weekday: 'short' });
-    return day + ' ' + fmtTime(iso);
+    return sameDay ? 'Today' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// --- Calendar tab Tasks sub-view ---
+
+function setCalSection(section) {
+    calSection = section === 'tasks' ? 'tasks' : 'calendar';
+    document.querySelectorAll('[data-calsec]').forEach(b =>
+        b.classList.toggle('active', b.getAttribute('data-calsec') === calSection));
+    const main = document.getElementById('cal-view-main');
+    const tasksView = document.getElementById('cal-view-tasks');
+    if (main) main.classList.toggle('hidden', calSection !== 'calendar');
+    if (tasksView) tasksView.classList.toggle('hidden', calSection !== 'tasks');
+    if (calSection === 'tasks') loadCalTasks();
+    else if (!calLoaded) loadCalendarView();
+}
+
+async function loadCalTasks() {
+    const wrap = document.getElementById('cal-tasks-list');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    wrap.appendChild(el('div', 'home-empty', 'Loading...'));
+    if (!taskConfig) await refreshTaskConfig();   // so importance badges are right
+    try {
+        renderCalTasks(await (await fetch('/api/tasks/upcoming?limit=12')).json());
+    } catch {
+        wrap.innerHTML = '';
+        wrap.appendChild(el('div', 'home-empty', 'Could not load tasks.'));
+    }
+}
+
+function renderCalTasks(d) {
+    const wrap = document.getElementById('cal-tasks-list');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const items = (d && d.tasks) || [];
+    if (!d || !d.available) {
+        wrap.appendChild(el('div', 'home-empty', (d && d.message) || 'Tasks are available on macOS only.'));
+        return;
+    }
+    if (!items.length) {
+        wrap.appendChild(el('div', 'home-empty', 'No upcoming tasks.'));
+        return;
+    }
+    items.forEach(ev => wrap.appendChild(taskRow(ev)));
+}
+
+// --- input-location indicator + Settings ---
+
+async function refreshTaskConfig() {
+    try {
+        const res = await fetch('/api/tasks/config');
+        if (!res.ok) return;
+        taskConfig = await res.json();
+    } catch { return; }
+    updateTaskInputIndicator();
+}
+
+function updateTaskInputIndicator() {
+    const tag = document.getElementById('home-task-mode');
+    if (!tag || !taskConfig) return;
+    tag.textContent = taskConfig.input_location === 'mac_prompt' ? 'Mac prompt' : 'Tablet';
+}
+
+// Fill the Settings Tasks card (called from loadSettings).
+function renderTaskSettings() {
+    if (!taskConfig) { refreshTaskConfig(); return; }
+    const cfg = taskConfig;
+    document.querySelectorAll('[data-task-input]').forEach(b =>
+        b.classList.toggle('active', b.getAttribute('data-task-input') === (cfg.input_location || 'dashboard')));
+    setText('set-task-cal', cfg.default_calendar ? cfg.default_calendar : 'Auto (Tasks calendar)');
+    if (cfg.regular_minutes) setText('set-task-dur', cfg.regular_minutes + ' / ' + cfg.important_minutes + ' min');
+    const hint = document.getElementById('set-task-hint');
+    if (hint) {
+        const macOnly = cfg.available === false;
+        hint.textContent = macOnly ? 'Tasks need macOS with the EventKit reader.' : '';
+        hint.classList.toggle('hidden', !macOnly);
+    }
+}
+
+async function setTaskInputLocation(value) {
+    try {
+        const res = await fetch('/api/tasks/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input_location: value })
+        });
+        const d = await res.json();
+        if (!res.ok || !d.success) { showToast((d && d.message) || 'Could not change input mode.', true); return; }
+        await refreshTaskConfig();
+        renderTaskSettings();
+        showToast('Add Task input set to ' + (value === 'mac_prompt' ? 'Mac prompt' : 'tablet') + '.');
+    } catch {
+        showToast('Connection error.', true);
+    }
 }
 
 // ============================================================

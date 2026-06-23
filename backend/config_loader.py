@@ -97,6 +97,10 @@ _DEFAULTS = {
     "TASK_DEFAULT_CALENDAR": os.getenv("TASK_DEFAULT_CALENDAR", ""),
     "TASK_REGULAR_DURATION_MINUTES": int(os.getenv("TASK_REGULAR_DURATION_MINUTES", "60")),
     "TASK_IMPORTANT_DURATION_MINUTES": int(os.getenv("TASK_IMPORTANT_DURATION_MINUTES", "240")),
+    # Where "Add Task" collects input: "dashboard" (the tablet form) or
+    # "mac_prompt" (native dialogs on the Mac). This is the persistent default;
+    # the Settings page can flip it for the running server.
+    "TASK_INPUT_LOCATION": os.getenv("TASK_INPUT_LOCATION", "dashboard"),
     # Buttons tab
     "SHORTCUT_ACTIONS": _SHORTCUT_ACTIONS_DEFAULT,
     # "Prepare" opens these apps and links. Keep them generic in a public repo.

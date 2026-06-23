@@ -21,6 +21,14 @@ def test_task_create_requires_a_session(client):
     assert client.post("/api/tasks/create", json=body).status_code == 401
 
 
+def test_task_management_routes_require_a_session(client):
+    assert client.post("/api/tasks/delete", json={"event_id": "x"}).status_code == 401
+    assert client.post("/api/tasks/reschedule",
+                       json={"event_id": "x", "date": "2026-06-23", "time": "14:00"}).status_code == 401
+    assert client.post("/api/tasks/prompt").status_code == 401
+    assert client.post("/api/tasks/config", json={"input_location": "dashboard"}).status_code == 401
+
+
 def test_login_with_wrong_password_is_401_and_counts_down(client):
     resp = client.post("/api/login", json={"password": "wrong"})
     assert resp.status_code == 401
