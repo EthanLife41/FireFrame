@@ -385,19 +385,18 @@ html, body {
 /* ===================================================
    HOME TAB: at-a-glance card grid
    =================================================== */
-/* Column masonry so cards pack by content height instead of stretching to a
-   shared row height. ~4 columns on the Fire HD 8, fewer on narrow screens. */
+/* Four-column grid tuned for the Fire HD 8 landscape screen. Spans are chosen so
+   every row fills: the two tall cards (Mac, Tasks) pair on one row, the short
+   utility cards share the next, and the status strip runs full width. */
 .home-grid {
-    column-width: 220px;
-    column-gap: 0.7rem;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.7rem;
+    align-content: start;
     padding-bottom: 0.5rem;
 }
-.home-grid > .card {
-    break-inside: avoid;
-    margin-bottom: 0.7rem;
-}
-/* Status footer spans the full width under the columns */
-.home-ff { column-span: all; }
+.home-clock, .home-events, .home-mac, .home-tasks { grid-column: span 2; }
+.home-ff { grid-column: 1 / -1; }
 /* Denser than a normal card to fit the short landscape screen */
 .home-card { padding: 0.85rem 0.95rem; }
 
@@ -1031,7 +1030,8 @@ html, body {
    =================================================== */
 /* Fire HD 8 lands around ~960×600 CSS px; phones / narrow windows below. */
 @media (max-width: 540px) {
-    .home-grid { column-width: auto; column-count: 1; }
+    .home-grid { grid-template-columns: repeat(2, 1fr); }
+    .home-clock, .home-events, .home-mac, .home-tasks { grid-column: 1 / -1; }
 }
 
 /* Respect reduced-motion preferences */
