@@ -385,22 +385,20 @@ html, body {
 /* ===================================================
    HOME TAB: at-a-glance card grid
    =================================================== */
-/* minmax(180px) packs 4 columns across the Fire HD 8's ~800-960 CSS px width,
-   which keeps the page short enough to need little scrolling. */
+/* Column masonry so cards pack by content height instead of stretching to a
+   shared row height. ~4 columns on the Fire HD 8, fewer on narrow screens. */
 .home-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    grid-auto-flow: row dense;
-    gap: 0.7rem;
-    align-content: start;
+    column-width: 220px;
+    column-gap: 0.7rem;
     padding-bottom: 0.5rem;
 }
-.home-clock    { grid-column: span 2; }
-.home-events   { grid-column: span 2; }
-.home-actions  { grid-column: span 2; }
-.home-launcher { grid-column: span 2; }
-.home-ff       { grid-column: 1 / -1; }
-/* Denser padding than a normal card so more fits on the short landscape screen */
+.home-grid > .card {
+    break-inside: avoid;
+    margin-bottom: 0.7rem;
+}
+/* Status footer spans the full width under the columns */
+.home-ff { column-span: all; }
+/* Denser than a normal card to fit the short landscape screen */
 .home-card { padding: 0.85rem 0.95rem; }
 
 .clock-card {
@@ -473,7 +471,7 @@ html, body {
 .home-weather-text { font-size: 1.05rem; font-weight: 600; }
 
 /* Quick actions + launcher: compact tiles */
-.home-mini-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0.45rem; }
+.home-mini-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.45rem; }
 .mini-btn {
     display: flex;
     flex-direction: column;
@@ -944,7 +942,6 @@ html, body {
     text-overflow: ellipsis;
 }
 
-.home-tasks { grid-column: span 2; }
 .task-mode-tag {
     font-size: 0.6rem;
     font-weight: 600;
@@ -1034,7 +1031,7 @@ html, body {
    =================================================== */
 /* Fire HD 8 lands around ~960×600 CSS px; phones / narrow windows below. */
 @media (max-width: 540px) {
-    .home-clock, .home-events, .home-actions, .home-launcher { grid-column: auto; }
+    .home-grid { column-width: auto; column-count: 1; }
 }
 
 /* Respect reduced-motion preferences */

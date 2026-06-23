@@ -1725,6 +1725,8 @@ let detailTask = null;          // task shown in the details modal
 let calSection = 'calendar';    // Calendar tab sub-view: 'calendar' | 'tasks'
 // Durations used only before /api/tasks/config has loaded (mirrors the backend defaults).
 const TASK_FALLBACK = { regular_minutes: 60, important_minutes: 240 };
+// Default start time for a new task (7 PM).
+const DEFAULT_TASK_TIME = '19:00';
 
 function setupTasks() {
     const on = (id, fn) => { const node = document.getElementById(id); if (node) node.addEventListener('click', fn); };
@@ -1825,7 +1827,7 @@ function openTaskModal(editTask) {
         if (title) { title.value = ''; title.disabled = false; }
         if (notes) notes.value = '';
         if (date) date.value = ymd(new Date());
-        if (time) time.value = nextHalfHour();
+        if (time) time.value = DEFAULT_TASK_TIME;
         setTaskImportance('regular');
         if (notesField) notesField.classList.remove('hidden');
         if (header) header.textContent = 'New Task';
@@ -1839,15 +1841,6 @@ function openTaskModal(editTask) {
 function closeTaskModal() {
     const modal = document.getElementById('task-modal');
     if (modal) modal.classList.add('hidden');
-}
-
-// "HH:MM" for the next upcoming half-hour (e.g. 4:53 -> 05:00, 4:20 -> 04:30).
-function nextHalfHour() {
-    const d = new Date();
-    d.setSeconds(0, 0);
-    if (d.getMinutes() < 30) d.setMinutes(30);
-    else { d.setMinutes(0); d.setHours(d.getHours() + 1); }
-    return hhmm(d);
 }
 
 function hhmm(d) {

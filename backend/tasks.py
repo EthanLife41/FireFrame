@@ -385,7 +385,8 @@ def _run_mac_prompt() -> None:
 
 
 def _ask_mac_for_task():
-    prefill = datetime.now().replace(second=0, microsecond=0).strftime("%Y-%m-%d %H:%M")
+    # Default to 7 PM today; the user can edit it in the prompt.
+    prefill = datetime.now().replace(hour=19, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M")
     script = _MAC_PROMPT_JXA.replace("__PREFILL__", prefill)
     proc = subprocess.run(["osascript", "-l", "JavaScript", "-e", script],
                           capture_output=True, text=True, timeout=180)

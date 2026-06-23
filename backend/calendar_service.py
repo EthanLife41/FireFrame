@@ -45,6 +45,9 @@ _MAX_MONTHS = 12      # cap on months held in memory
 # Serialise expensive reads so two requests never spawn osascript at once.
 _fetch_lock = threading.Lock()
 
+# One long-lived EKEventStore, reused across reads and writes (see _authorized_store).
+_store_cache = {"store": None}
+
 
 def _ttl() -> int:
     try:
@@ -334,14 +337,19 @@ def is_eventkit_available() -> bool:
 
 
 def _authorized_store():
-    """Return an EKEventStore with events access, requesting it once if needed.
-    Raises PermissionError if access is denied. EventKit only (macOS)."""
+    """Return the shared EKEventStore, requesting access on first use. Reusing
+    one store keeps reads consistent with writes and avoids the empty results a
+    just-created store can return. Raises PermissionError if access is denied."""
     import threading as _threading
     from EventKit import EKEventStore
 
     status = EKEventStore.authorizationStatusForEntityType_(0)  # 0 = events
     if status == _EK_DENIED:
         raise PermissionError("calendar_access_denied")
+
+    store = _store_cache["store"]
+    if store is not None:
+        return store
 
     store = EKEventStore.alloc().init()
     if status != _EK_AUTHORIZED:
@@ -359,6 +367,8 @@ def _authorized_store():
         done.wait(timeout=20)
         if not granted["ok"]:
             raise PermissionError("calendar_access_denied")
+
+    _store_cache["store"] = store
     return store
 
 
@@ -385,6 +395,11 @@ def _query_apple_eventkit(start_dt: datetime, end_dt: datetime) -> list:
     from Foundation import NSDate
 
     store = _authorized_store()
+    # Pull in changes made since the store was created (e.g. a newly added task).
+    try:
+        store.refreshSourcesIfNecessary()
+    except Exception:
+        pass
     ns_start = NSDate.dateWithTimeIntervalSince1970_(start_dt.timestamp())
     ns_end = NSDate.dateWithTimeIntervalSince1970_(end_dt.timestamp())
     predicate = store.predicateForEventsWithStartDate_endDate_calendars_(ns_start, ns_end, None)
@@ -738,7 +753,9 @@ def get_sources() -> dict:
 
 
 def refresh_calendar() -> dict:
+    """Drop the read caches so the next fetch reloads from the source. The
+    caller does the reload, keeping a refresh to a single read."""
     _full["events"] = None
     _full["ts"] = 0.0
     _months.clear()
-    return get_upcoming()
+    return get_calendar_status()
