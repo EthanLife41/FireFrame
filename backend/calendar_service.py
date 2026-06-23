@@ -41,7 +41,7 @@ _meta = {"connected": False, "source": "none", "error": None, "message": None}
 _full = {"events": None, "ts": 0.0}
 # Apple Calendar is fetched one month at a time, on demand, and kept cached.
 _months = {}          # "YYYY-MM" -> {"events": [...], "ts": float}
-_MAX_MONTHS = 12      # cap on months held in memory
+_MAX_MONTHS = 14      # cap on months held in memory (covers a year-ahead Tasks view)
 # Serialise expensive reads so two requests never spawn osascript at once.
 _fetch_lock = threading.Lock()
 
@@ -726,11 +726,12 @@ def get_today() -> dict:
     return get_day(None)
 
 
-def get_upcoming() -> dict:
-    days = max(1, int(CALENDAR_UPCOMING_DAYS))
+def get_upcoming(days=None, cap=25) -> dict:
+    days = max(1, int(days if days is not None else CALENDAR_UPCOMING_DAYS))
     a = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     b = a + timedelta(days=days)
-    return {**_meta, "events": _public(_collect(a, b)[:25])}
+    events = _public(_collect(a, b))
+    return {**_meta, "events": events[:cap] if cap else events}
 
 
 def get_calendar_status() -> dict:

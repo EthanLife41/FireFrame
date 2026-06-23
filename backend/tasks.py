@@ -27,6 +27,7 @@ from backend.config_loader import (
     TASK_REGULAR_DURATION_MINUTES,
     TASK_IMPORTANT_DURATION_MINUTES,
     TASK_INPUT_LOCATION,
+    TASK_UPCOMING_LOOKAHEAD_DAYS,
 )
 
 REGULAR = "regular"
@@ -165,21 +166,25 @@ def _read_calendars() -> dict:
         "suggested_id": suggested["id"] if suggested else None,
     }
 
+def _lookahead_days() -> int:
+    try:
+        return max(1, int(TASK_UPCOMING_LOOKAHEAD_DAYS))
+    except (TypeError, ValueError):
+        return 365
 
 def get_upcoming(limit: int = 3) -> dict:
-    """Upcoming task blocks for the Home card: timed events in the suggested
-    Tasks calendar over the calendar's look-ahead window. Reuses the cached
-    calendar read, so it reflects the Apple source (CALENDAR_SOURCE=apple)."""
+    """Upcoming task blocks: timed events in the suggested Tasks calendar over
+    the lookahead window. limit=0 returns all (for the scrollable Tasks view)."""
     cal_info = get_calendars()
     if not cal_info.get("available"):
         return {"available": False, "tasks": [], "message": cal_info.get("message")}
 
-    limit = max(0, min(int(limit), 50))
+    limit = max(0, min(int(limit), 500))
     target = next((c for c in cal_info["calendars"]
                    if c["id"] == cal_info.get("suggested_id")), None)
     target_name = target["name"] if target else None
 
-    data = calendar_service.get_upcoming()   # cached; honours CALENDAR_SOURCE
+    data = calendar_service.get_upcoming(days=_lookahead_days(), cap=0)
     events = data.get("events", [])
     if target_name:
         events = [e for e in events
@@ -188,7 +193,7 @@ def get_upcoming(limit: int = 3) -> dict:
         "available": True,
         "calendar": target_name,
         "source": data.get("source"),
-        "tasks": events[:limit],
+        "tasks": events if limit == 0 else events[:limit],
     }
 
 

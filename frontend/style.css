@@ -960,6 +960,7 @@ html, body {
     padding: 0.5rem 0.6rem;
     background: var(--bg-2);
     border: 1px solid var(--border);
+    border-left: 3px solid hsl(var(--task-hue, 220) 60% 55%);
     border-radius: var(--radius-sm);
     cursor: pointer;
 }
@@ -986,9 +987,21 @@ html, body {
 .cal-section-seg { width: 100%; margin-bottom: 0.6rem; }
 .cal-section-seg .seg-btn { flex: 1; }
 #cal-view-main { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.cal-view-tasks { display: flex; flex-direction: column; gap: 0.6rem; }
+.cal-view-tasks { display: flex; flex-direction: column; gap: 0.6rem; flex: 1; min-height: 0; }
 .cal-tasks-head { display: flex; justify-content: space-between; align-items: center; }
-.cal-tasks-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.cal-tasks-list { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-height: 0; overflow-y: auto; }
+.cal-tasks-month {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 0.3rem 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted-2);
+}
+.cal-tasks-month:not(:first-child) { margin-top: 0.4rem; }
 
 /* Task details modal */
 .td-rows { display: flex; flex-direction: column; gap: 0.5rem; }

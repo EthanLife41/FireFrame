@@ -2009,6 +2009,7 @@ function refreshTaskViews() {
 
 function taskRow(ev) {
     const row = el('div', 'task-item');
+    row.style.setProperty('--task-hue', hueForCalendar(ev.calendar, ev.calendar_color));
     row.appendChild(el('div', 'home-task-when', taskWhen(ev.start)));
     const main = el('div', 'task-item-main');
     main.appendChild(el('div', 'home-task-title', ev.title));
@@ -2107,7 +2108,7 @@ async function loadCalTasks() {
     wrap.appendChild(el('div', 'home-empty', 'Loading...'));
     if (!taskConfig) await refreshTaskConfig();   // so importance badges are right
     try {
-        renderCalTasks(await (await fetch('/api/tasks/upcoming?limit=12')).json());
+        renderCalTasks(await (await fetch('/api/tasks/upcoming?limit=0')).json());
     } catch {
         wrap.innerHTML = '';
         wrap.appendChild(el('div', 'home-empty', 'Could not load tasks.'));
@@ -2127,7 +2128,16 @@ function renderCalTasks(d) {
         wrap.appendChild(el('div', 'home-empty', 'No upcoming tasks.'));
         return;
     }
-    items.forEach(ev => wrap.appendChild(taskRow(ev)));
+    let month = '';
+    items.forEach(ev => {
+        const m = monthLabel(ev.start);
+        if (m !== month) { month = m; wrap.appendChild(el('div', 'cal-tasks-month', m)); }
+        wrap.appendChild(taskRow(ev));
+    });
+}
+
+function monthLabel(iso) {
+    return new Date(iso).toLocaleDateString([], { month: 'long', year: 'numeric' });
 }
 
 // --- input-location indicator + Settings ---

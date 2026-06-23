@@ -92,6 +92,7 @@ Everything is set in `.env` (copied from `.env.example`). Nothing personal is co
 | `TASK_DEFAULT_CALENDAR` | empty | Force a task target calendar by name (else auto-pick) |
 | `TASK_REGULAR_DURATION_MINUTES` | `60` | Length of a Regular task block |
 | `TASK_IMPORTANT_DURATION_MINUTES` | `240` | Length of an Important task block |
+| `TASK_UPCOMING_LOOKAHEAD_DAYS` | `365` | How far ahead the Tasks list looks |
 
 ## Calendar
 
@@ -121,7 +122,7 @@ A FireFrame *task* is a scheduled calendar block, not an Apple Reminder. You giv
 - **Regular** sets a 1-hour block.
 - **Important** sets a 4-hour block, for work that needs real time.
 
-Both lengths are configurable (`TASK_REGULAR_DURATION_MINUTES`, `TASK_IMPORTANT_DURATION_MINUTES`). Add a task from the Home **Tasks** card or the Calendar tab's **Tasks** sub-view; both lists show upcoming blocks with an importance badge, and the Calendar grid refreshes to show a new one after you save.
+Both lengths are configurable (`TASK_REGULAR_DURATION_MINUTES`, `TASK_IMPORTANT_DURATION_MINUTES`). Add a task from the Home **Tasks** card or the Calendar tab's **Tasks** sub-view. The Home card shows only the next few tasks; the Calendar tab's **Tasks** sub-view lists everything up to a year ahead (`TASK_UPCOMING_LOOKAHEAD_DAYS`), grouped by month and scrollable. Both show an importance badge and the calendar's colour, and the views refresh after you add, reschedule, or delete.
 
 **Manage a task.** Tap any task (on Home or in the Calendar Tasks sub-view) to open its details, then **Reschedule** (pick a new date, time, and importance — the block resizes to match) or **Delete** (with a confirm step). FireFrame only edits or deletes events in your task calendars, so a tap can't touch an unrelated event.
 

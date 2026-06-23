@@ -97,6 +97,8 @@ _DEFAULTS = {
     "TASK_DEFAULT_CALENDAR": os.getenv("TASK_DEFAULT_CALENDAR", ""),
     "TASK_REGULAR_DURATION_MINUTES": int(os.getenv("TASK_REGULAR_DURATION_MINUTES", "60")),
     "TASK_IMPORTANT_DURATION_MINUTES": int(os.getenv("TASK_IMPORTANT_DURATION_MINUTES", "240")),
+    # How far ahead the Tasks view looks (the Home card still shows only the next few).
+    "TASK_UPCOMING_LOOKAHEAD_DAYS": int(os.getenv("TASK_UPCOMING_LOOKAHEAD_DAYS", "365")),
     # Where "Add Task" collects input: "dashboard" (the tablet form) or
     # "mac_prompt" (native dialogs on the Mac). This is the persistent default;
     # the Settings page can flip it for the running server.
