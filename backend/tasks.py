@@ -320,15 +320,15 @@ def reschedule_task(event_id: str, date_str: str, time_str: str,
 
 
 # --- Mac prompt mode: collect a task via native dialogs on the Mac ----------
-# The only value placed into the script is a server-generated timestamp (the
-# prefilled start time). The user's answers come back over stdout and are
-# validated before reaching EventKit; no user input is interpolated into the
-# script or a shell.
+# The only values placed into the script are server-generated (today's date and
+# a default time). The user's answers come back over stdout and are validated
+# before reaching EventKit; no user input is interpolated into the script or a shell.
 
 _MAC_PROMPT_JXA = """
 (() => {
   const app = Application.currentApplication();
   app.includeStandardAdditions = true;
+  const pad = n => (n < 10 ? "0" + n : "" + n);
   let title;
   try {
     title = app.displayDialog("New task — title:", {
@@ -345,10 +345,38 @@ _MAC_PROMPT_JXA = """
     if (r === false) return "CANCEL";
     importance = r[0];
   } catch (e) { return "CANCEL"; }
-  let when;
+  // Pick a day from a weekday-labelled list, so the date's weekday is visible.
+  // "Other date…" lets you type any date for months further out.
+  const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const OTHER = "Other date…";
+  const base = new Date(__YEAR__, __MONTH__ - 1, __DAY__);
+  const labels = [];
+  const isoByLabel = {};
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+    const wd = WD[d.getDay()] + ", " + MO[d.getMonth()] + " " + d.getDate();
+    const label = i === 0 ? "Today (" + wd + ")" : i === 1 ? "Tomorrow (" + wd + ")" : wd;
+    labels.push(label);
+    isoByLabel[label] = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+  labels.push(OTHER);
+  let dayIso;
   try {
-    when = app.displayDialog("Start time (YYYY-MM-DD HH:MM):", {
-      defaultAnswer: "__PREFILL__", buttons: ["Cancel", "Next"], defaultButton: "Next"
+    const r = app.chooseFromList(labels, { withPrompt: "Pick a day:", defaultItems: [labels[0]] });
+    if (r === false) return "CANCEL";
+    if (r[0] === OTHER) {
+      dayIso = app.displayDialog("Date (YYYY-MM-DD):", {
+        defaultAnswer: "__OTHER__", buttons: ["Cancel", "Next"], defaultButton: "Next"
+      }).textReturned.trim();
+    } else {
+      dayIso = isoByLabel[r[0]];
+    }
+  } catch (e) { return "CANCEL"; }
+  let time;
+  try {
+    time = app.displayDialog("Start time (HH:MM):", {
+      defaultAnswer: "__TIME__", buttons: ["Cancel", "Next"], defaultButton: "Next"
     }).textReturned;
   } catch (e) { return "CANCEL"; }
   let notes = "";
@@ -357,6 +385,7 @@ _MAC_PROMPT_JXA = """
       defaultAnswer: "", buttons: ["Skip", "Add"], defaultButton: "Add"
     }).textReturned;
   } catch (e) { notes = ""; }
+  const when = dayIso + " " + (time || "").trim();
   return JSON.stringify({ title: title, importance: importance, when: when, notes: notes });
 })()
 """
@@ -394,9 +423,16 @@ def _run_mac_prompt() -> None:
 
 
 def _ask_mac_for_task():
-    # Default to 7 PM today; the user can edit it in the prompt.
-    prefill = datetime.now().replace(hour=19, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M")
-    script = _MAC_PROMPT_JXA.replace("__PREFILL__", prefill)
+    # Day list starts today; "Other date…" prefills ~a month out. Time defaults
+    # to 7 PM. All are editable in the prompt.
+    now = datetime.now()
+    other = (now + timedelta(days=30)).strftime("%Y-%m-%d")
+    script = (_MAC_PROMPT_JXA
+              .replace("__YEAR__", str(now.year))
+              .replace("__MONTH__", str(now.month))
+              .replace("__DAY__", str(now.day))
+              .replace("__TIME__", "19:00")
+              .replace("__OTHER__", other))
     proc = subprocess.run(["osascript", "-l", "JavaScript", "-e", script],
                           capture_output=True, text=True, timeout=180)
     out = (proc.stdout or "").strip()
