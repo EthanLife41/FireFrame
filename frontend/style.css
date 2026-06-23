@@ -926,6 +926,7 @@ html, body {
    TASKS
    =================================================== */
 .home-tasks-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.home-tasks-all { width: 100%; margin-top: 0.5rem; }
 .home-task-when {
     flex-shrink: 0;
     min-width: 4.6rem;

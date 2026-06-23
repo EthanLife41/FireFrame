@@ -752,10 +752,16 @@ def get_sources() -> dict:
     return {**_meta, "sources": names}
 
 
-def refresh_calendar() -> dict:
-    """Drop the read caches so the next fetch reloads from the source. The
-    caller does the reload, keeping a refresh to a single read."""
+def invalidate_cache() -> None:
+    """Drop the in-memory read caches so the next fetch reloads from the source.
+    Call after writing an event so the change is visible immediately."""
     _full["events"] = None
     _full["ts"] = 0.0
     _months.clear()
+
+
+def refresh_calendar() -> dict:
+    """Drop the read caches so the next fetch reloads from the source. The
+    caller does the reload, keeping a refresh to a single read."""
+    invalidate_cache()
     return get_calendar_status()

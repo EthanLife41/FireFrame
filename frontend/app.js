@@ -1731,6 +1731,7 @@ const DEFAULT_TASK_TIME = '19:00';
 function setupTasks() {
     const on = (id, fn) => { const node = document.getElementById(id); if (node) node.addEventListener('click', fn); };
     on('home-add-task', addTask);
+    on('home-view-all-tasks', viewAllTasks);
     on('caltask-add', addTask);
     on('task-cancel-btn', closeTaskModal);
     on('task-save-btn', submitTask);
@@ -2036,10 +2037,11 @@ async function loadHomeTasks() {
     if (!wrap) return;
     if (!taskConfig) await refreshTaskConfig();   // so importance badges are right
     try {
-        renderHomeTasks(await (await fetch('/api/tasks/upcoming?limit=4')).json());
+        renderHomeTasks(await (await fetch('/api/tasks/upcoming?limit=3')).json());
     } catch {
         wrap.innerHTML = '';
         wrap.appendChild(el('div', 'home-empty', 'Could not load tasks.'));
+        toggleViewAllTasks(false);
     }
 }
 
@@ -2050,9 +2052,22 @@ function renderHomeTasks(d) {
     const items = (d && d.tasks) || [];
     if (!d || !d.available || !items.length) {
         wrap.appendChild(el('div', 'home-empty', 'No upcoming tasks. Tap Add Task to block time.'));
+        toggleViewAllTasks(false);
         return;
     }
     items.forEach(ev => wrap.appendChild(taskRow(ev)));
+    toggleViewAllTasks(true);
+}
+
+function toggleViewAllTasks(show) {
+    const btn = document.getElementById('home-view-all-tasks');
+    if (btn) btn.classList.toggle('hidden', !show);
+}
+
+// Jump to the Calendar tab's Tasks sub-view to see and manage every task.
+function viewAllTasks() {
+    switchTab('calendar');
+    setCalSection('tasks');
 }
 
 function taskWhen(iso) {

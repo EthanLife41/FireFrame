@@ -231,6 +231,7 @@ def create_task(title: str, date_str: str, time_str: str,
     except Exception:
         return _fail("write_failed", "Could not create the task in Apple Calendar.")
 
+    calendar_service.invalidate_cache()   # so the new task shows on the next read
     return {
         "success": True,
         "message": f"Added '{title}' ({minutes} min).",
@@ -276,6 +277,7 @@ def delete_task(event_id: str) -> dict:
         return _fail("delete_failed", str(exc))
     except Exception:
         return _fail("delete_failed", "Could not delete the task.")
+    calendar_service.invalidate_cache()   # drop the deleted task from cached reads
     return {"success": True, "message": "Task deleted."}
 
 
@@ -307,6 +309,7 @@ def reschedule_task(event_id: str, date_str: str, time_str: str,
         return _fail("reschedule_failed", str(exc))
     except Exception:
         return _fail("reschedule_failed", "Could not reschedule the task.")
+    calendar_service.invalidate_cache()   # so the new time/order shows on the next read
     return {"success": True, "message": f"Rescheduled ({minutes} min).",
             "start": start.isoformat(), "end": end.isoformat(), "importance": importance}
 
@@ -379,6 +382,7 @@ def _run_mac_prompt() -> None:
     try:
         calendar_service.create_event(title=data["title"], start=data["start"],
                                       end=data["end"], notes=data["notes"], calendar_id="")
+        calendar_service.invalidate_cache()   # so the next read surfaces the task
         _notify_mac("Task added.")
     except Exception:
         _notify_mac("Could not add the task. Check Calendar access.")
